@@ -25,8 +25,6 @@ public class TrainingSelectHandler : IRaceHandler
 
     private const double TrainBtnX = 0.89;
     private const double TrainBtnY = 0.89;
-    private const double RestBtnX = 0.95;
-    private const double RestBtnY = 0.70;
 
     public TrainingSelectHandler(
         IRaceStepGate? innerGate = null)
@@ -456,8 +454,10 @@ public class TrainingSelectHandler : IRaceHandler
         await KeyboardSimulator.SendKey(ctx.WindowHandle, KeyboardSimulator.VK_ESCAPE);
         await ctx.Wait(1200);
 
-        Log.Log($"Rest flow: click rest at fixed percent ({RestBtnX:F2},{RestBtnY:F2})");
-        await ctx.ClickAtPercent(RestBtnX, RestBtnY);
+        using var shot = ctx.CaptureScreen();
+        var point = MainMenuScreenChecks.ResolveRestMenuClickPoint(shot);
+        Log.Log($"Rest flow: click rest main-menu diamond at ({point.X:F3},{point.Y:F3})");
+        await ctx.ClickAtPercent(point.X, point.Y);
 
         await ctx.Wait(1500);
     }
