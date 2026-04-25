@@ -6,6 +6,14 @@ namespace SleepRunner.Tests.Automation.Race;
 public class RestOptionGeometryTests
 {
     [Fact]
+    public void ConfirmRestButtonY_targets_lower_rest_button_center()
+    {
+        double y = GetPrivateDoubleConstant("ConfirmRestBtnY");
+
+        Assert.InRange(y, 0.915d, 0.935d);
+    }
+
+    [Fact]
     public void ResolveOptionY_uses_base_when_target_option_is_not_directly_anchored()
     {
         double y = InvokeResolveOptionY(
@@ -40,5 +48,16 @@ public class RestOptionGeometryTests
                             ?? throw new Xunit.Sdk.XunitException("RestDecisionHandler.ResolveTargetOptionY was not found.");
 
         return (double)method.Invoke(null, [resolvedY, anchored, optionIndex, baseY])!;
+    }
+
+    private static double GetPrivateDoubleConstant(string name)
+    {
+        Type handlerType = Type.GetType("SleepRunner.Automation.Race.Handlers.RestDecisionHandler, SleepRunner")
+            ?? throw new Xunit.Sdk.XunitException("RestDecisionHandler type was not found.");
+
+        FieldInfo field = handlerType.GetField(name, BindingFlags.Static | BindingFlags.NonPublic)
+                          ?? throw new Xunit.Sdk.XunitException($"RestDecisionHandler.{name} was not found.");
+
+        return (double)field.GetRawConstantValue()!;
     }
 }
