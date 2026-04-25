@@ -1,0 +1,9 @@
+{
+  "_comment": "生存向卡片优先级；列表顺序即优先级，靠前优先。whitelist 留空 = 任意奖励界面都按 priority 匹配。保存即热重载（最快 2 秒生效）。",
+  "priority_keywords": [
+    { "label": "生命值", "keywords": ["生命值", "HP", "血量", "生命"] },
+    { "label": "防御力", "keywords": ["防御力", "防御"] },
+    { "label": "回复",   "keywords": ["回复", "回血"] }
+  ],
+  "whitelist": []
+}

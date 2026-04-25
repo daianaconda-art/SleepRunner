@@ -1,0 +1,66 @@
+{
+  "_comment": "攻击向训练策略：纯规则版。规则自上而下匹配，首条命中即执行。",
+  "rules": [
+    {
+      "id": "rest_high_strength_fail",
+      "field": "strength_fail_rate",
+      "operator": ">",
+      "value": 25,
+      "action": "rest",
+      "enabled": true
+    },
+    {
+      "id": "rush_strength_stat",
+      "field": "strength_stat",
+      "operator": ">",
+      "value": 450,
+      "action": "train_strength",
+      "enabled": true
+    },
+    {
+      "id": "strength_icons_3",
+      "field": "strength_icons",
+      "operator": ">=",
+      "value": 3,
+      "action": "train_strength",
+      "enabled": true
+    },
+    {
+      "id": "agility_icons_3",
+      "field": "agility_icons",
+      "operator": ">=",
+      "value": 3,
+      "action": "train_agility",
+      "enabled": true
+    },
+    {
+      "id": "stamina_icons_3",
+      "field": "stamina_icons",
+      "operator": ">=",
+      "value": 3,
+      "action": "train_stamina",
+      "enabled": true
+    },
+    {
+      "id": "focus_icons_3",
+      "field": "focus_icons",
+      "operator": ">=",
+      "value": 3,
+      "action": "train_focus",
+      "enabled": true
+    },
+    {
+      "id": "guard_icons_3",
+      "field": "guard_icons",
+      "operator": ">=",
+      "value": 3,
+      "action": "train_guard",
+      "enabled": true
+    },
+    {
+      "id": "fallback_attack_strength",
+      "action": "train_strength",
+      "enabled": true
+    }
+  ]
+}
