@@ -24,9 +24,9 @@ internal static class TradeDetailOcr
 
     public static readonly OfferSlotRegion[] OfferSlots =
     [
-        new OfferSlotRegion(0.815, 0.44, 0.78, 0.34, 0.19, 0.12),
-        new OfferSlotRegion(0.815, 0.56, 0.78, 0.47, 0.19, 0.12),
-        new OfferSlotRegion(0.815, 0.68, 0.78, 0.60, 0.19, 0.12),
+        new OfferSlotRegion(0.88, 0.425, 0.78, 0.34, 0.19, 0.12),
+        new OfferSlotRegion(0.88, 0.525, 0.78, 0.47, 0.19, 0.12),
+        new OfferSlotRegion(0.88, 0.626, 0.78, 0.60, 0.19, 0.12),
     ];
 
     public static readonly (double X, double Y, double W, double H)[] DetailPriceRegions =

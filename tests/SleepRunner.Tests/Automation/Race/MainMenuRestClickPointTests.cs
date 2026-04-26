@@ -6,12 +6,12 @@ namespace SleepRunner.Tests.Automation.Race;
 public class MainMenuRestClickPointTests
 {
     [Fact]
-    public void ResolveRestMenuClickPoint_falls_back_to_third_main_menu_row()
+    public void ResolveRestMenuClickPoint_falls_back_to_current_rest_main_menu_row()
     {
         var point = InvokeResolveRestMenuClickPoint();
 
         Assert.Equal(0.91d, point.X, 3);
-        Assert.Equal(0.72d, point.Y, 3);
+        Assert.Equal(0.626d, point.Y, 3);
     }
 
     private static (double X, double Y) InvokeResolveRestMenuClickPoint()

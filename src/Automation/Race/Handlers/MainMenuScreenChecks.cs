@@ -8,7 +8,7 @@ internal static class MainMenuScreenChecks
     private const double MenuDiamondX = 0.91;
     private const double TrainDiamondY = 0.40;
     private const double CommissionDiamondY = 0.56;
-    private const double RestDiamondY = 0.72;
+    private const double RestDiamondY = 0.626;
 
     private const string TrainText = "\u8bad\u7ec3";
     private const string CommissionText = "\u59d4\u6258";
@@ -20,7 +20,7 @@ internal static class MainMenuScreenChecks
     [
         (TrainDiamondY, 0.74, 0.34, 0.22, 0.10),
         (CommissionDiamondY, 0.74, 0.50, 0.22, 0.10),
-        (RestDiamondY, 0.74, 0.66, 0.22, 0.10),
+        (RestDiamondY, 0.74, 0.58, 0.22, 0.10),
     ];
 
     public static bool IsMainMenuScreen(Mat screenshot, out string summary)

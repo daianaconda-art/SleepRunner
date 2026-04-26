@@ -27,6 +27,16 @@ public class TradeSlotOwnershipTests
         Assert.True(owned);
     }
 
+    [Theory]
+    [InlineData("皇家炸肉组@80", "《家炸肉组料理食物0")]
+    [InlineData("集中训练的禁书丿60", "0集中j川练的禁书训练书籍0")]
+    [InlineData("，0《高级炸肉40", "0哥级炸肉料理食物0")]
+    public void BelongsToSlot_tolerates_trade_detail_ocr_noise_seen_in_logs(string rowText, string detailTitle)
+    {
+        bool owned = InvokeBelongsToSlot(rowText, detailTitle);
+        Assert.True(owned);
+    }
+
     private static bool InvokeBelongsToSlot(string rowText, string detailTitle)
     {
         Type policyType = LoadSleepRunnerAssembly().GetType("SleepRunner.Automation.Race.Handlers.Trade.TradeSlotOwnershipPolicy")

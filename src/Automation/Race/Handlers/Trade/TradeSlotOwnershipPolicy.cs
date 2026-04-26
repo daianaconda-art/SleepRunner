@@ -31,7 +31,30 @@ internal static class TradeSlotOwnershipPolicy
                                .Replace("（", "", StringComparison.Ordinal)
                                .Replace("）", "", StringComparison.Ordinal)
                                .Trim();
+        normalized = Regex.Replace(normalized, @"[^\u4e00-\u9fff]", "");
+        normalized = NormalizeCommonOcrNoise(normalized);
+        normalized = StripKnownDetailSuffix(normalized);
         return normalized;
+    }
+
+    private static string NormalizeCommonOcrNoise(string text)
+    {
+        return text.Replace("哥级", "高级", StringComparison.Ordinal)
+                   .Replace("川练", "训练", StringComparison.Ordinal);
+    }
+
+    private static string StripKnownDetailSuffix(string text)
+    {
+        foreach (string suffix in new[] { "料理食物", "训练书籍", "食物", "书籍" })
+        {
+            if (text.EndsWith(suffix, StringComparison.Ordinal) &&
+                text.Length > suffix.Length + 2)
+            {
+                return text[..^suffix.Length];
+            }
+        }
+
+        return text;
     }
 
     private static int GetCommonPrefixLength(string left, string right)
