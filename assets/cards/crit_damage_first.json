@@ -1,9 +1,8 @@
 {
-  "_comment": "生存向卡片优先级；列表顺序即优先级，靠前优先。whitelist 命中 title/card 任一关键词后才走 priority 匹配。保存即热重载（最快 2 秒生效）。",
+  "_comment": "暴击伤害优先示例；只关心暴击伤害/暴击率两条。",
   "priority_keywords": [
-    { "label": "生命值", "keywords": ["生命值", "HP", "血量", "生命"] },
-    { "label": "防御力", "keywords": ["防御力", "防御"] },
-    { "label": "回复",   "keywords": ["回复", "回血"] }
+    { "label": "暴击伤害", "keywords": ["暴击伤害", "暴击伤", "爆伤"] },
+    { "label": "暴击率",   "keywords": ["暴击率", "暴率"] }
   ],
   "whitelist": [
     {

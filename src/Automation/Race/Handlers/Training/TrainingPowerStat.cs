@@ -120,12 +120,12 @@ internal static class TrainingPowerStat
         if (LooksLikeRankText(text)) return -1;
 
         // 排除 "/" 后的上限值 1250
-        var match = Regex.Match(text, $@"{Regex.Escape(statName)}[^\d/]{{0,5}}(\d{{2,4}})\s*/?\s*(?:1250)?");
-        if (match.Success && int.TryParse(match.Groups[1].Value, out int val) && val >= 50 && val <= 1300)
+        var match = Regex.Match(text, $@"{Regex.Escape(statName)}[^\d/]{{0,5}}(\d{{1,4}})\s*/?\s*(?:1250)?");
+        if (match.Success && int.TryParse(match.Groups[1].Value, out int val) && val >= 0 && val <= 1300)
             return val;
 
-        match = Regex.Match(text, @"(\d{2,4})\s*/\s*1250");
-        if (match.Success && int.TryParse(match.Groups[1].Value, out val) && val >= 50 && val <= 1300)
+        match = Regex.Match(text, @"(\d{1,4})\s*/\s*1250");
+        if (match.Success && int.TryParse(match.Groups[1].Value, out val) && val >= 0 && val <= 1300)
             return val;
 
         return -1;
@@ -140,18 +140,24 @@ internal static class TrainingPowerStat
         if (LooksLikeRankText(text)) { reason = "rank-like"; return false; }
         if (LooksLikeOtherStatText(text, statName)) { reason = "other-stat-like"; return false; }
 
+        if (LooksLikePrefixedBonusNoise(text))
+        {
+            reason = "prefixed-bonus-noise";
+            return false;
+        }
+
         if (Regex.IsMatch(text, @"^[^\d]*[+＋]\d{3,4}\s*/\s*1250"))
         {
             reason = "prefixed-bonus-noise";
             return false;
         }
 
-        var match = Regex.Match(text, @"(\d{3,4})\s*/\s*1250");
-        if (match.Success && int.TryParse(match.Groups[1].Value, out int slashVal) && slashVal >= 100 && slashVal <= 1300)
+        var match = Regex.Match(text, @"(\d{1,4})\s*/\s*1250");
+        if (match.Success && int.TryParse(match.Groups[1].Value, out int slashVal) && slashVal >= 0 && slashVal <= 1300)
         { value = slashVal; reason = "current/max"; return true; }
 
-        match = Regex.Match(text, $@"{Regex.Escape(statName)}[^\d/]{{0,5}}(\d{{3,4}})");
-        if (match.Success && int.TryParse(match.Groups[1].Value, out int labelVal) && labelVal >= 100 && labelVal <= 1300)
+        match = Regex.Match(text, $@"{Regex.Escape(statName)}[^\d/]{{0,5}}(\d{{1,4}})");
+        if (match.Success && int.TryParse(match.Groups[1].Value, out int labelVal) && labelVal >= 0 && labelVal <= 1300)
         { value = labelVal; reason = "label+digits"; return true; }
 
         match = Regex.Match(text, @"^\D*(\d{3,4})\D*$");
@@ -167,6 +173,11 @@ internal static class TrainingPowerStat
         if (string.IsNullOrEmpty(text)) return false;
         return text.Contains("RANK", StringComparison.OrdinalIgnoreCase) ||
                Regex.IsMatch(text, @"^R\w*ANK?\d{2,4}$", RegexOptions.IgnoreCase);
+    }
+
+    private static bool LooksLikePrefixedBonusNoise(string text)
+    {
+        return Regex.IsMatch(text, @"^[^\d]*(?:[+＋]|锛媇)\s*\d{1,4}\s*/\s*1250");
     }
 
     /// <summary>

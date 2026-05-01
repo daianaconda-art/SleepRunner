@@ -119,6 +119,22 @@ public static class RaceConfig
         }
     }
 
+    private static AppraiseDifficultyMode _appraiseDifficultyMode = AppraiseDifficultyMode.Hard;
+
+    public static AppraiseDifficultyMode AppraiseDifficultyMode
+    {
+        get => _appraiseDifficultyMode;
+        set
+        {
+            if (value == _appraiseDifficultyMode)
+                return;
+            var previous = _appraiseDifficultyMode;
+            _appraiseDifficultyMode = value;
+            Logger.Log($"[RaceConfig] AppraiseDifficultyMode changed: {previous} -> {value}");
+            RaiseChanged();
+        }
+    }
+
     private static void RaiseChanged()
     {
         try

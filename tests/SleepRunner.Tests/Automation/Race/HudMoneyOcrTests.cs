@@ -1,4 +1,5 @@
 using System.Reflection;
+using OpenCvSharp;
 using Xunit;
 
 namespace SleepRunner.Tests.Automation.Race;
@@ -30,6 +31,36 @@ public class HudMoneyOcrTests
 
         Assert.False(success);
         Assert.Equal(0, money);
+    }
+
+    [Fact]
+    public void TryBuildCoinAnchoredMoneyRect_finds_top_hud_money_next_to_gold_coin()
+    {
+        using var screenshot = new Mat(new Size(2559, 1440), MatType.CV_8UC3, new Scalar(24, 48, 70));
+        Cv2.Rectangle(screenshot, new Rect(1390, 60, 280, 65), new Scalar(35, 48, 70), -1);
+        Cv2.Circle(screenshot, new Point(1520, 86), 18, new Scalar(30, 180, 235), -1);
+
+        var (success, rect) = InvokeTryBuildCoinAnchoredMoneyRect(screenshot);
+
+        Assert.True(success);
+        Assert.True(rect.X > 1520);
+        Assert.True(rect.Y < 120);
+        Assert.True(rect.Width >= 50);
+    }
+
+    private static (bool Success, Rect Rect) InvokeTryBuildCoinAnchoredMoneyRect(Mat screenshot)
+    {
+        Type helperType = Type.GetType("SleepRunner.Automation.Race.HudMoneyOcr, SleepRunner")
+            ?? throw new Xunit.Sdk.XunitException("HudMoneyOcr type was not found.");
+
+        MethodInfo method = helperType.GetMethod(
+                                "TryBuildCoinAnchoredMoneyRect",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("HudMoneyOcr.TryBuildCoinAnchoredMoneyRect was not found.");
+
+        object?[] args = [screenshot, default(Rect)];
+        bool success = (bool)method.Invoke(null, args)!;
+        return (success, (Rect)args[1]!);
     }
 
     private static (bool Success, int Money) InvokeTryResolveFromRawRegions(string[] raws)

@@ -34,9 +34,9 @@ public class CardSelectHandler : IRaceHandler
 
     private static readonly (double X, double Y, double W, double H)[] RecommendBadgeRegions =
     [
-        (0.08, 0.20, 0.16, 0.08),
-        (0.385, 0.20, 0.16, 0.08),
-        (0.69, 0.20, 0.16, 0.08),
+        (0.16, 0.20, 0.20, 0.10),
+        (0.37, 0.20, 0.20, 0.10),
+        (0.58, 0.20, 0.20, 0.10),
     ];
 
     public string Name => "卡片选择";
@@ -77,7 +77,7 @@ public class CardSelectHandler : IRaceHandler
         }
 
         var (policy, reason) = ResolvePolicy(title, texts);
-        return policy == CardPolicyType.PriorityRule
+        return IsPriorityPolicy(policy)
             ? $"CardSelect: priority rule ({reason})"
             : $"CardSelect: default policy ({reason})";
     }
@@ -93,8 +93,13 @@ public class CardSelectHandler : IRaceHandler
             return;
         }
 
-        bool readyToConfirm = await HandleByProfileAsync(ctx, shot);
-        if (!readyToConfirm)
+        CardSelectHandleResult result = await HandleByProfileAsync(ctx, shot);
+        if (result == CardSelectHandleResult.HandledWithoutConfirm)
+        {
+            return;
+        }
+
+        if (result == CardSelectHandleResult.NoSelectionReady)
         {
             Log.Log("Card select: select-done stayed gray after trying candidate cards, skip confirm click.");
             return;
@@ -105,7 +110,7 @@ public class CardSelectHandler : IRaceHandler
         await ctx.Wait(1000);
     }
 
-    private async Task<bool> HandleByProfileAsync(GameContext ctx, Mat shot)
+    private async Task<CardSelectHandleResult> HandleByProfileAsync(GameContext ctx, Mat shot)
     {
         string titleRaw = await OcrHelper.RecognizeRegion(shot, TitleRegionX, TitleRegionY, TitleRegionW, TitleRegionH);
         string title = NormalizeOcr(titleRaw);
@@ -128,12 +133,21 @@ public class CardSelectHandler : IRaceHandler
 
         int? recommendedSlot = TryResolveRecommendedSlot(shot);
         int[] attemptOrder;
-        if (policy == CardPolicyType.PriorityRule)
+        if (IsPriorityPolicy(policy))
         {
             attemptOrder = BuildPriorityAttemptOrder(texts);
+            if (CardSelectPlanner.ShouldClickUnselectedForPriorityMiss(policy == CardPolicyType.WhitelistPriorityRule, attemptOrder.Length))
+            {
+                var unselected = CardSelectPlanner.GetUnselectedClickPercent();
+                Log.Log($"Whitelist matched but no priority keyword hit, click unselected at ({unselected.X:F3},{unselected.Y:F3})");
+                await ctx.ClickAtPercent(unselected.X, unselected.Y);
+                await ctx.Wait(500);
+                return CardSelectHandleResult.HandledWithoutConfirm;
+            }
+
             if (attemptOrder.Length == 0)
             {
-                Log.Log("Whitelist matched but no priority keyword hit, fallback to default policy");
+                Log.Log("Priority rule found no keyword hit, fallback to default policy");
                 attemptOrder = BuildDefaultAttemptOrder(recommendedSlot);
             }
         }
@@ -154,13 +168,13 @@ public class CardSelectHandler : IRaceHandler
 
             if (await WaitForSelectDoneEnabledAsync(ctx, slot))
             {
-                return true;
+                return CardSelectHandleResult.SelectionReady;
             }
 
             Log.Log($"Card attempt: select-done still gray after card {slot + 1}, try next candidate.");
         }
 
-        return false;
+        return CardSelectHandleResult.NoSelectionReady;
     }
 
     private int[] BuildPriorityAttemptOrder(string[] normalizedTexts)
@@ -297,6 +311,7 @@ public class CardSelectHandler : IRaceHandler
                 .GetAwaiter()
                 .GetResult();
             string text = NormalizeOcr(raw);
+            Log.Log($"Default policy: recommend OCR slot {i + 1}: '{text}'");
             if (text.Contains("推荐", StringComparison.Ordinal) ||
                 text.Contains("推薦", StringComparison.Ordinal))
             {
@@ -305,8 +320,20 @@ public class CardSelectHandler : IRaceHandler
             }
         }
 
-        Log.Log("Default policy: recommend OCR not found, fallback to card order");
+        int? badgeSlot = CardSelectPlanner.TryResolveRecommendedBadgeSlot(shot, out double[] blueRatios);
+        if (badgeSlot.HasValue)
+        {
+            Log.Log($"Default policy: recommend blue badge found in slot {badgeSlot.Value + 1} (blue ratios: {FormatBlueRatios(blueRatios)})");
+            return badgeSlot;
+        }
+
+        Log.Log($"Default policy: recommend OCR/color not found (blue ratios: {FormatBlueRatios(blueRatios)}), fallback to card order");
         return null;
+    }
+
+    private static string FormatBlueRatios(double[] ratios)
+    {
+        return string.Join(", ", ratios.Select((ratio, index) => $"{index + 1}={ratio:P1}"));
     }
 
     private async Task<bool> WaitForSelectDoneEnabledAsync(GameContext ctx, int slot)
@@ -343,7 +370,7 @@ public class CardSelectHandler : IRaceHandler
         if (whitelist.Count == 0)
         {
             return RaceUserPolicy.CardPriorityOrder.Count > 0
-                ? (CardPolicyType.PriorityRule, "no whitelist gating, use priority directly")
+                ? (CardPolicyType.DirectPriorityRule, "no whitelist gating, use priority directly")
                 : (CardPolicyType.DefaultRecommendFirst, "whitelist empty + priority empty");
         }
 
@@ -388,11 +415,17 @@ public class CardSelectHandler : IRaceHandler
             if (titleHit || cardHit)
             {
                 string hitType = titleHit ? "title keyword hit" : "card keyword hit";
-                return (CardPolicyType.PriorityRule, $"rule={rule.Id}, {hitType}");
+                return (CardPolicyType.WhitelistPriorityRule, $"rule={rule.Id}, {hitType}");
             }
         }
 
         return (CardPolicyType.DefaultRecommendFirst, "no whitelist rule matched");
+    }
+
+    private static bool IsPriorityPolicy(CardPolicyType policy)
+    {
+        return policy == CardPolicyType.DirectPriorityRule ||
+               policy == CardPolicyType.WhitelistPriorityRule;
     }
 
     private static string NormalizeOcr(string raw)
@@ -419,7 +452,15 @@ public class CardSelectHandler : IRaceHandler
     private enum CardPolicyType
     {
         DefaultRecommendFirst,
-        PriorityRule,
+        DirectPriorityRule,
+        WhitelistPriorityRule,
+    }
+
+    private enum CardSelectHandleResult
+    {
+        SelectionReady,
+        NoSelectionReady,
+        HandledWithoutConfirm,
     }
 
     private static readonly LogScope Log = new("Race:CardSelect");

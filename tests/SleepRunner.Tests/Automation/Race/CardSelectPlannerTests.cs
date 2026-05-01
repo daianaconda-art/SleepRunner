@@ -57,6 +57,36 @@ public class CardSelectPlannerTests
         Assert.True(satMean > 28, $"Expected high saturation, got {satMean:F1}.");
     }
 
+    [Fact]
+    public void TryResolveRecommendedBadgeSlot_detects_third_slot_badge_when_badge_sits_left_of_card()
+    {
+        using var screenshot = CreateRecommendBadgeScreenshot(2);
+
+        int? slot = InvokeTryResolveRecommendedBadgeSlot(screenshot, out double[] blueRatios);
+
+        Assert.Equal(2, slot);
+        Assert.True(blueRatios[2] > 0.08, $"Expected third slot blue ratio above threshold, got {blueRatios[2]:P2}.");
+        Assert.True(blueRatios[0] < 0.01, $"Expected first slot not to look recommended, got {blueRatios[0]:P2}.");
+        Assert.True(blueRatios[1] < 0.01, $"Expected second slot not to look recommended, got {blueRatios[1]:P2}.");
+    }
+
+    [Fact]
+    public void ShouldClickUnselectedForPriorityMiss_only_applies_to_whitelisted_priority_rules()
+    {
+        Assert.True(InvokeShouldClickUnselectedForPriorityMiss(isWhitelistedPriorityRule: true, priorityCandidateCount: 0));
+        Assert.False(InvokeShouldClickUnselectedForPriorityMiss(isWhitelistedPriorityRule: true, priorityCandidateCount: 1));
+        Assert.False(InvokeShouldClickUnselectedForPriorityMiss(isWhitelistedPriorityRule: false, priorityCandidateCount: 0));
+    }
+
+    [Fact]
+    public void GetUnselectedClickPercent_targets_top_right_red_unselected_button()
+    {
+        (double x, double y) = InvokeGetUnselectedClickPercent();
+
+        Assert.InRange(x, 0.87, 0.90);
+        Assert.InRange(y, 0.04, 0.07);
+    }
+
     private static int[] InvokeBuildAttemptOrder(string[] texts, int[] preferredOrder)
     {
         Type plannerType = GetPlannerType();
@@ -87,6 +117,44 @@ public class CardSelectPlannerTests
         return grayDisabled;
     }
 
+    private static int? InvokeTryResolveRecommendedBadgeSlot(Mat screenshot, out double[] blueRatios)
+    {
+        Type plannerType = GetPlannerType();
+        MethodInfo method = plannerType.GetMethod(
+                                "TryResolveRecommendedBadgeSlot",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("CardSelectPlanner.TryResolveRecommendedBadgeSlot was not found.");
+
+        object?[] args = [screenshot, null!];
+        object? result = method.Invoke(null, args);
+        blueRatios = (double[])args[1]!;
+        return result is null ? null : (int)result;
+    }
+
+    private static bool InvokeShouldClickUnselectedForPriorityMiss(bool isWhitelistedPriorityRule, int priorityCandidateCount)
+    {
+        Type plannerType = GetPlannerType();
+        MethodInfo method = plannerType.GetMethod(
+                                "ShouldClickUnselectedForPriorityMiss",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("CardSelectPlanner.ShouldClickUnselectedForPriorityMiss was not found.");
+
+        return (bool)method.Invoke(null, [isWhitelistedPriorityRule, priorityCandidateCount])!;
+    }
+
+    private static (double X, double Y) InvokeGetUnselectedClickPercent()
+    {
+        Type plannerType = GetPlannerType();
+        MethodInfo method = plannerType.GetMethod(
+                                "GetUnselectedClickPercent",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("CardSelectPlanner.GetUnselectedClickPercent was not found.");
+
+        object? result = method.Invoke(null, null);
+        Assert.NotNull(result);
+        return ((double X, double Y))result!;
+    }
+
     private static Type GetPlannerType()
     {
         return Type.GetType("SleepRunner.Automation.Race.Handlers.CardSelectPlanner, SleepRunner")
@@ -104,6 +172,22 @@ public class CardSelectPlannerTests
             Math.Max(1, (int)(width * 0.10)),
             Math.Max(1, (int)(height * 0.04)));
         Cv2.Rectangle(screenshot, buttonRect, buttonColor, thickness: -1);
+        return screenshot;
+    }
+
+    private static Mat CreateRecommendBadgeScreenshot(int slot)
+    {
+        const int width = 2559;
+        const int height = 1440;
+        var screenshot = new Mat(new Size(width, height), MatType.CV_8UC3, new Scalar(18, 18, 18));
+        double[] badgeLeftBySlot = [0.19, 0.405, 0.605];
+        var badgeRect = new Rect(
+            (int)(width * badgeLeftBySlot[slot]),
+            (int)(height * 0.225),
+            (int)(width * 0.078),
+            (int)(height * 0.036));
+
+        Cv2.Rectangle(screenshot, badgeRect, new Scalar(222, 142, 45), thickness: -1);
         return screenshot;
     }
 }

@@ -22,8 +22,9 @@ public class CommissionHandler : IRaceHandler
 
     private const int PopupCacheTtlMs = 5000;
 
-    // 委托列表第 3 项与"接受"按钮锚点
-    private const double ThirdOptionX = 0.88;
+    // 委托列表第 2/3 项与"接受"按钮锚点
+    private const double ListOptionX = 0.88;
+    private const double SecondOptionY = 0.50;
     // 之前 0.68 偏下，提升到 0.62 更贴近第三项文本中线
     private const double ThirdOptionY = 0.62;
     private const double AcceptBtnX = 0.88;
@@ -87,12 +88,14 @@ public class CommissionHandler : IRaceHandler
                 return $"Commission popup: start-only ('{popupText}') -> click start commission";
 
             bool isRedDifficult = CommissionPopupChecks.DetectRedDifficult(screenshot, popupText, out double redRatio, out bool hasDifficultKeyword);
-            return isRedDifficult
+            bool shouldStart = CommissionAppraiseDifficultyPolicy.ShouldStartDifficultyBasedPopup(isRedDifficult);
+            return shouldStart
                 ? $"Commission popup: difficultKeyword={hasDifficultKeyword}, redRatio={redRatio:F3} -> click start commission"
                 : $"Commission popup: difficultKeyword={hasDifficultKeyword}, redRatio={redRatio:F3} -> click skip battle";
         }
 
-        return "Commission list: click option #3 -> accept -> popup decision";
+        int optionIndex = CommissionAppraiseDifficultyPolicy.ResolveListOptionIndex(RaceConfig.AppraiseDifficultyMode);
+        return $"Commission list: mode={RaceConfig.AppraiseDifficultyMode}, click option #{optionIndex} -> accept -> popup decision";
     }
 
     public async Task HandleAsync(GameContext ctx)
@@ -114,8 +117,9 @@ public class CommissionHandler : IRaceHandler
             return;
         }
 
-        Log.Log("Commission branch step1: clicking third option...");
-        await ctx.ClickAtPercent(ThirdOptionX, ThirdOptionY);
+        var listTarget = ResolveListOptionTarget();
+        Log.Log($"Commission branch step1: mode={RaceConfig.AppraiseDifficultyMode}, clicking option #{listTarget.Index}...");
+        await ctx.ClickAtPercent(listTarget.X, listTarget.Y);
         await ctx.Wait(700);
 
         Log.Log("Commission branch step2: clicking bottom accept...");
@@ -172,7 +176,8 @@ public class CommissionHandler : IRaceHandler
 
         if (TryGetPopupDecision(shot, out string popupText, out _, allowCached: false))
         {
-            bool wantStart = CommissionPopupChecks.DetectRedDifficult(shot, popupText, out _, out _);
+            bool isRedDifficult = CommissionPopupChecks.DetectRedDifficult(shot, popupText, out _, out _);
+            bool wantStart = CommissionAppraiseDifficultyPolicy.ShouldStartDifficultyBasedPopup(isRedDifficult);
             string buttonType = wantStart ? "start" : "skip";
             CommissionPopupButtons.ResolveTarget(shot, buttonType, out double x, out double y, out string reason, out string hitText, out int bestScore);
 
@@ -184,9 +189,10 @@ public class CommissionHandler : IRaceHandler
             return;
         }
 
-        int listPx = CommissionPopupButtons.ToClientPixelX(shot, ThirdOptionX);
-        int listPy = CommissionPopupButtons.ToClientPixelY(shot, ThirdOptionY);
-        Log.Log($"Commission probe move: list select option3, x={ThirdOptionX:F3}, y={ThirdOptionY:F3}, move=({listPx},{listPy})");
+        var listTarget = ResolveListOptionTarget();
+        int listPx = CommissionPopupButtons.ToClientPixelX(shot, listTarget.X);
+        int listPy = CommissionPopupButtons.ToClientPixelY(shot, listTarget.Y);
+        Log.Log($"Commission probe move: list select option{listTarget.Index}, x={listTarget.X:F3}, y={listTarget.Y:F3}, move=({listPx},{listPy})");
         await MouseSimulator.MoveToClient(ctx.WindowHandle, listPx, listPy);
         await ctx.Wait(200);
     }
@@ -218,8 +224,9 @@ public class CommissionHandler : IRaceHandler
             else
             {
                 bool isRedDifficult = CommissionPopupChecks.DetectRedDifficult(current, popupText, out double redRatio, out bool hasDifficultKeyword);
+                bool shouldStart = CommissionAppraiseDifficultyPolicy.ShouldStartDifficultyBasedPopup(isRedDifficult);
                 Log.Log($"Popup decision r{round}: difficultKeyword={hasDifficultKeyword}, redRatio={redRatio:F3}, text='{popupText}'");
-                if (isRedDifficult)
+                if (shouldStart)
                 {
                     Log.Log("Commission branch: red difficult => click start commission");
                     await CommissionPopupButtons.ProbeAndClickAsync(ctx, current, "start");
@@ -282,6 +289,13 @@ public class CommissionHandler : IRaceHandler
         return !string.IsNullOrEmpty(_lastPopupText) &&
                _lastPopupMode != PopupDecisionMode.None &&
                (DateTime.UtcNow - _lastPopupUtc).TotalMilliseconds <= PopupCacheTtlMs;
+    }
+
+    private static (int Index, double X, double Y) ResolveListOptionTarget()
+    {
+        int optionIndex = CommissionAppraiseDifficultyPolicy.ResolveListOptionIndex(RaceConfig.AppraiseDifficultyMode);
+        double y = optionIndex == 2 ? SecondOptionY : ThirdOptionY;
+        return (optionIndex, ListOptionX, y);
     }
 
     private static readonly LogScope Log = new("Race:Commission");

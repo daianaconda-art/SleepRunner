@@ -166,6 +166,9 @@ internal static class TradeStageOcr
         if (IsTradeDetailScreen(screenshot))
             return true;
 
+        if (HasSoldOutRowSignal(screenshot))
+            return true;
+
         var regions = new (double X, double Y, double W, double H)[]
         {
             (0.60, 0.30, 0.36, 0.46),
@@ -182,6 +185,17 @@ internal static class TradeStageOcr
                 text.Contains("购买", StringComparison.Ordinal) ||
                 text.Contains("OPEN", StringComparison.OrdinalIgnoreCase) ||
                 text.Contains("PEN", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasSoldOutRowSignal(Mat screenshot)
+    {
+        for (int i = 0; i < TradeDetailOcr.OfferSlots.Length; i++)
+        {
+            if (TradeDetailOcr.IsRowMarkedSoldOut(screenshot, i))
                 return true;
         }
 

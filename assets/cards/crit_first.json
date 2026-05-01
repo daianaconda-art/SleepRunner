@@ -2,7 +2,38 @@
   "_comment": "暴击优先示例；只关心暴击率/暴击伤害两条。",
   "priority_keywords": [
     { "label": "暴击率",   "keywords": ["暴击率", "暴率"] },
-    { "label": "暴击伤害", "keywords": ["暴击伤害", "爆伤"] }
+    { "label": "暴击伤害", "keywords": ["暴击伤害", "暴击伤", "爆伤"] }
   ],
-  "whitelist": []
+  "whitelist": [
+    {
+      "id": "slime_set_cards",
+      "title_keywords": [],
+      "card_keywords": [
+        "沾有史莱姆的手套",
+        "沾有史莱姆的眼镜",
+        "沾有史莱姆的披风"
+      ]
+    },
+    {
+      "id": "apocalypse_new_set_cards",
+      "title_keywords": [],
+      "card_keywords": [
+        "启示录新型手套",
+        "启示录新型项链",
+        "启示录新型项炼",
+        "启示录新型裤子"
+      ]
+    },
+    {
+      "id": "first_battle_self_buff_set",
+      "title_keywords": [],
+      "card_keywords": [
+        "首次战斗开始时",
+        "自身的暴击率",
+        "自身的攻击力",
+        "自身的暴击伤害",
+        "自身的暴击伤"
+      ]
+    }
+  ]
 }

@@ -11,11 +11,13 @@ internal sealed class RaceConfigStrip : Control
 {
     private NumericStepper? _stepSpeed;
     private NumericStepper? _stepClick;
+    private SegmentedToggle? _toggleAppraiseDifficulty;
     private ConfigRow? _rowSpeed;
     private ConfigRow? _rowClick;
+    private ConfigRow? _rowAppraiseDifficulty;
 
-    public const int VisibleRowCount = 2;
-    public const int CardHeight = 136;
+    public const int VisibleRowCount = 3;
+    public const int CardHeight = 196;
 
     public event Action? Changed;
 
@@ -67,13 +69,33 @@ internal sealed class RaceConfigStrip : Control
         var rowClick = new ConfigRow(UiText.Config.ClickSpeedTitle, UiText.Config.ClickSpeedHint);
         rowClick.SetEditor(stepClick);
 
+        var toggleAppraiseDifficulty = new SegmentedToggle
+        {
+            Segments = UiText.Config.AppraiseDifficultySegments,
+            SelectedIndex = settings.AppraiseDifficultyMode == AppraiseDifficultyMode.Normal ? 0 : 1,
+            Width = 132,
+            Height = 30,
+        };
+        toggleAppraiseDifficulty.SelectedIndexChanged += () =>
+        {
+            RaceConfig.AppraiseDifficultyMode = toggleAppraiseDifficulty.SelectedIndex == 0
+                ? AppraiseDifficultyMode.Normal
+                : AppraiseDifficultyMode.Hard;
+            Changed?.Invoke();
+        };
+        var rowAppraiseDifficulty = new ConfigRow(UiText.Config.AppraiseDifficultyTitle, UiText.Config.AppraiseDifficultyHint);
+        rowAppraiseDifficulty.SetEditor(toggleAppraiseDifficulty);
+
         _stepSpeed = stepSpeed;
         _stepClick = stepClick;
+        _toggleAppraiseDifficulty = toggleAppraiseDifficulty;
         _rowSpeed = rowSpeed;
         _rowClick = rowClick;
+        _rowAppraiseDifficulty = rowAppraiseDifficulty;
 
         Controls.Add(rowSpeed);
         Controls.Add(rowClick);
+        Controls.Add(rowAppraiseDifficulty);
 
         Height = CardHeight;
         LayoutRows();
@@ -88,7 +110,7 @@ internal sealed class RaceConfigStrip : Control
     private void LayoutRows()
     {
         const int pad = 8;
-        var rows = new[] { _rowSpeed, _rowClick };
+        var rows = new[] { _rowSpeed, _rowClick, _rowAppraiseDifficulty };
         foreach (var row in rows)
         {
             if (row is null) return;
@@ -115,7 +137,7 @@ internal sealed class RaceConfigStrip : Control
         using (var pen = new Pen(RaceTheme.Border, 1))
             g.DrawPath(pen, path);
 
-        var rows = new[] { _rowSpeed };
+        var rows = new[] { _rowSpeed, _rowClick };
         foreach (var row in rows)
         {
             if (row is null) continue;

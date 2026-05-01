@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Linq;
+using System.Reflection;
 using System.Windows.Forms;
 using SleepRunner.Automation;
 using SleepRunner.Automation.Race;
@@ -13,6 +14,14 @@ namespace SleepRunner.Tests.Forms;
 
 public class WarmUiMainWindowBehaviorTests
 {
+    private const int WmHotkey = 0x0312;
+    private const int AutomationToggleHotkeyId = 0x5151;
+    private const int ModAlt = 0x0001;
+    private const int VkQ = 0x51;
+    private const int WmSyskeydown = 0x0104;
+    private const int WmSyskeyup = 0x0105;
+    private const int LlkAltDown = 0x20;
+
     [Fact]
     public void RaceMainWindow_start_button_click_invokes_controller_start()
     {
@@ -53,6 +62,101 @@ public class WarmUiMainWindowBehaviorTests
             Assert.Equal(0, controller.StartCallCount);
             Assert.Equal(1, controller.StopCallCount);
             Assert.False(stopButton.Enabled);
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_alt_q_hotkey_starts_when_idle()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            var controller = new StubRaceController();
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                controller);
+
+            DispatchAltQHotkey(window);
+
+            Assert.Equal(1, controller.StartCallCount);
+            Assert.Equal(0, controller.StopCallCount);
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_alt_q_hotkey_stops_when_running()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            var controller = new StubRaceController();
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                controller);
+
+            controller.SetState(RaceState.Running);
+
+            DispatchAltQHotkey(window);
+
+            Assert.Equal(0, controller.StartCallCount);
+            Assert.Equal(1, controller.StopCallCount);
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_alt_q_hotkey_ignores_while_stopping()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            var controller = new StubRaceController();
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                controller);
+
+            controller.SetState(RaceState.Stopping);
+
+            DispatchAltQHotkey(window);
+
+            Assert.Equal(0, controller.StartCallCount);
+            Assert.Equal(0, controller.StopCallCount);
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_keyboard_hook_fallback_handles_alt_q_when_idle()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            var controller = new StubRaceController();
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                controller);
+
+            bool handled = HandleAutomationKeyboardHook(window, WmSyskeydown, VkQ, LlkAltDown);
+
+            Assert.True(handled);
+            Assert.Equal(1, controller.StartCallCount);
+            Assert.Equal(0, controller.StopCallCount);
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_keyboard_hook_fallback_ignores_repeated_alt_q_until_keyup()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            var controller = new StubRaceController();
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                controller);
+
+            bool firstHandled = HandleAutomationKeyboardHook(window, WmSyskeydown, VkQ, LlkAltDown);
+            bool repeatHandled = HandleAutomationKeyboardHook(window, WmSyskeydown, VkQ, LlkAltDown);
+            HandleAutomationKeyboardHook(window, WmSyskeyup, VkQ, LlkAltDown);
+            bool afterKeyUpHandled = HandleAutomationKeyboardHook(window, WmSyskeydown, VkQ, LlkAltDown);
+
+            Assert.True(firstHandled);
+            Assert.True(repeatHandled);
+            Assert.True(afterKeyUpHandled);
+            Assert.Equal(2, controller.StartCallCount);
         });
     }
 
@@ -184,6 +288,23 @@ public class WarmUiMainWindowBehaviorTests
 
     private static void ClickButton(Button button) =>
         WinFormsTestHost.Invoke(button, "OnClick", EventArgs.Empty);
+
+    private static void DispatchAltQHotkey(Form window)
+    {
+        int hotkeyPayload = (VkQ << 16) | ModAlt;
+        var message = Message.Create(window.Handle, WmHotkey, (IntPtr)AutomationToggleHotkeyId, (IntPtr)hotkeyPayload);
+        WinFormsTestHost.Invoke(window, "WndProc", message);
+    }
+
+    private static bool HandleAutomationKeyboardHook(Form window, int message, int vkCode, int flags)
+    {
+        MethodInfo method = window.GetType().GetMethod(
+            "HandleAutomationKeyboardHook",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("HandleAutomationKeyboardHook method not found.");
+
+        return (bool)method.Invoke(window, new object[] { message, vkCode, flags })!;
+    }
 
     private sealed class StubRaceController : IRaceController
     {

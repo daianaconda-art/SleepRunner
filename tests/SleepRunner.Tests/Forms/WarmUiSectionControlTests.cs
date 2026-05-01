@@ -62,7 +62,7 @@ public class WarmUiSectionControlTests
                 "SleepRunner.Forms.Controls.RaceConfigStrip",
                 new UserSettings());
 
-            Assert.Equal(136, strip.Height);
+            Assert.Equal(196, strip.Height);
 
             Control firstRow = strip.Controls[0];
             Control stepper = firstRow.Controls.Cast<Control>()
@@ -70,6 +70,28 @@ public class WarmUiSectionControlTests
 
             Assert.Equal(new Size(132, 36), stepper.Size);
             Assert.Equal("x", (string)stepper.GetType().GetProperty("Suffix")!.GetValue(stepper)!);
+        });
+    }
+
+    [Fact]
+    public void RaceConfigStrip_exposes_appraise_difficulty_toggle_defaulting_to_hard()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var strip = (Control)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.Controls.RaceConfigStrip",
+                new UserSettings());
+
+            Control toggle = strip.Controls
+                .Cast<Control>()
+                .SelectMany(row => row.Controls.Cast<Control>())
+                .Single(control => control.GetType().Name == "SegmentedToggle");
+
+            string[] segments = (string[])toggle.GetType().GetProperty("Segments")!.GetValue(toggle)!;
+            int selectedIndex = (int)toggle.GetType().GetProperty("SelectedIndex")!.GetValue(toggle)!;
+
+            Assert.Equal(["普通", "困难"], segments);
+            Assert.Equal(1, selectedIndex);
         });
     }
 

@@ -260,7 +260,12 @@ public sealed class DefaultTradeFlowExecutor : ITradeFlowExecutor
                 }
             }
 
-            detailShot ??= await TradeBuyActions.TryOpenOfferDetailAsync(ctx, slotIndex, slot, detailMayAlreadyBeOpen);
+            detailShot ??= await TradeBuyActions.TryOpenOfferDetailAsync(
+                ctx,
+                slotIndex,
+                slot,
+                detailMayAlreadyBeOpen,
+                requireOwnedAfterClick: false);
             using (detailShot)
             {
                 if (detailShot == null || detailShot.Empty())
@@ -282,13 +287,24 @@ public sealed class DefaultTradeFlowExecutor : ITradeFlowExecutor
                     continue;
                 }
 
-                if (!TradeBuyActions.IsCurrentDetailOwnedBySlot(freshShot, slotIndex))
+                bool detailOwnedBySlot = TradeBuyActions.IsCurrentDetailOwnedBySlot(freshShot, slotIndex);
+                var offer = TradePurchasePolicy.BuildOfferFromShot(freshShot, slotIndex);
+                bool strongUnownedDetail = !detailOwnedBySlot && TradePurchasePolicy.IsStrongDetailPurchaseCandidate(offer);
+                if (!detailOwnedBySlot && !strongUnownedDetail)
                 {
                     Logger.Log($"[Race:Trade] Trade offer[{slotIndex + 1}]: fresh capture belongs to another slot (attempt={attempt}).");
                     continue;
                 }
 
-                var offer = TradePurchasePolicy.BuildOfferFromShot(freshShot, slotIndex);
+                if (strongUnownedDetail)
+                {
+                    string rowText = TradeDetailOcr.ReadRowSlotText(freshShot, slotIndex);
+                    string detailTitle = TradeDetailOcr.ReadDetailTitleText(freshShot);
+                    Logger.Log(
+                        $"[Race:Trade] Trade offer[{slotIndex + 1}]: ownership uncertain but strong detail signal accepted " +
+                        $"(row='{rowText}', detail='{detailTitle}', price={offer.Price}, effect='{offer.EffectText}').");
+                }
+
                 if (TradePurchasePolicy.IsOfferReadable(offer))
                 {
                     Logger.Log($"[Race:Trade] Trade offer[{slotIndex + 1}]: read success on attempt {attempt}.");

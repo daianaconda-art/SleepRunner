@@ -93,7 +93,7 @@ internal static class TradePurchasePolicy
                                    (offer.IsMustBuy || offer.IsStrengthIncrease || offer.IsStaminaRecover);
 
         if (!offer.HasReliableSlotText)
-            return false;
+            return IsStrongDetailPurchaseCandidate(offer);
 
         if (isPurchaseCandidate && !hasPrice)
         {
@@ -106,6 +106,21 @@ internal static class TradePurchasePolicy
             return true;
 
         return hasSlotText && hasEffectText && (hasPrice || hasSignal);
+    }
+
+    public static bool IsStrongDetailPurchaseCandidate(TradeOffer offer)
+    {
+        bool hasEffectText = TradeStageOcr.CountChineseChars(offer.EffectText) >= 2;
+        bool hasPrice = offer.Price > 0 && offer.Price < 10000;
+        bool hasEnabledBuyButton = offer.HasBuyButtonVisible && !offer.IsBuyDisabled;
+        bool hasPurchaseSignal = offer.IsPotentialPoint ||
+                                 offer.IsMustBuy ||
+                                 offer.IsStrengthIncrease ||
+                                 offer.IsStaminaRecover ||
+                                 offer.StrengthGain > 0 ||
+                                 offer.StaminaRecover > 0;
+
+        return hasEnabledBuyButton && hasPrice && hasEffectText && hasPurchaseSignal;
     }
 
     public static List<TradeOffer> BuildPurchaseQueue(List<TradeOffer> offers, bool preferStrengthItems, int budget)

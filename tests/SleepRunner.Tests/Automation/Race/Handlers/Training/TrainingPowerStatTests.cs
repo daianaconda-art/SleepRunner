@@ -25,6 +25,16 @@ public class TrainingPowerStatTests
         Assert.Equal("current/max", reason);
     }
 
+    [Fact]
+    public void Focused_stamina_stat_accepts_single_digit_current_over_max_text()
+    {
+        bool parsed = InvokeTryParseStatValueFocused("\u4f53\u529b9/1250", "\u4f53\u529b", out int value, out string reason);
+
+        Assert.True(parsed);
+        Assert.Equal(9, value);
+        Assert.Equal("current/max", reason);
+    }
+
     private static bool InvokeTryParseStatValueFocused(string text, string statName, out int value, out string reason)
     {
         Type type = Type.GetType("SleepRunner.Automation.Race.Handlers.Training.TrainingPowerStat, SleepRunner")

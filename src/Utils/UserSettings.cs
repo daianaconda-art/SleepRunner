@@ -31,6 +31,10 @@ public sealed class UserSettings
     [JsonPropertyName("build_direction")]
     public BuildDirection BuildDirection { get; set; } = BuildDirection.Attack;
 
+    /// <summary>评鉴战难度：Normal 选第二项，Hard 选第三项；默认沿用困难。</summary>
+    [JsonPropertyName("appraise_difficulty_mode")]
+    public AppraiseDifficultyMode AppraiseDifficultyMode { get; set; } = AppraiseDifficultyMode.Hard;
+
     /// <summary>力量猛攻触发阈值；范围 [100,1200]；默认 450</summary>
     [JsonPropertyName("power_rush_threshold")]
     public int PowerRushThreshold { get; set; } = 450;
@@ -104,7 +108,7 @@ public sealed class UserSettings
             loaded.Clamp();
             Logger.Log($"[Settings] Loaded: failRate={loaded.FailRateThreshold}%, " +
                        $"waitX={loaded.WaitMultiplier:F2}, clickX={loaded.ClickSpeedMultiplier:F2}, build={loaded.BuildDirection}, " +
-                       $"powerRush={loaded.PowerRushThreshold}, " +
+                       $"appraise={loaded.AppraiseDifficultyMode}, powerRush={loaded.PowerRushThreshold}, " +
                        $"profiles=(events={loaded.EventsProfile}, cards={loaded.CardsProfile}, trade={loaded.TradeProfile}, training={loaded.TrainingProfile}), " +
                        $"window=({loaded.WindowX},{loaded.WindowY},{loaded.WindowWidth}x{loaded.WindowHeight}), " +
                        $"topMost={loaded.TopMost}");
@@ -148,6 +152,7 @@ public sealed class UserSettings
         RaceConfig.WaitMultiplier = WaitMultiplier;
         RaceConfig.ClickSpeedMultiplier = ClickSpeedMultiplier;
         RaceConfig.BuildDirection = BuildDirection;
+        RaceConfig.AppraiseDifficultyMode = AppraiseDifficultyMode;
         RaceConfig.PowerRushThreshold = PowerRushThreshold;
 
         // profile 选择是全局状态：UI 读 RaceProfileManager，决策侧也读 RaceProfileManager；
@@ -168,6 +173,8 @@ public sealed class UserSettings
             WaitMultiplier = Math.Clamp(WaitMultiplier, 0.5, 2.0);
         if (ClickSpeedMultiplier < 0.3 || ClickSpeedMultiplier > 2.0)
             ClickSpeedMultiplier = Math.Clamp(ClickSpeedMultiplier, 0.3, 2.0);
+        if (!Enum.IsDefined(AppraiseDifficultyMode))
+            AppraiseDifficultyMode = AppraiseDifficultyMode.Hard;
         PowerRushThreshold = Math.Clamp(PowerRushThreshold, 100, 1200);
         if (WindowWidth < 0) WindowWidth = 0;
         if (WindowHeight < 0) WindowHeight = 0;

@@ -270,11 +270,18 @@ public class TrainingSelectHandler : IRaceHandler
             }
 
             Log.Log($"Lazy scan requires metric: {probe.MissingField.Value}");
-            await EnsureMetricAsync(ctx, state, probe.MissingField.Value);
+            bool madeProgress = await EnsureMetricAsync(ctx, state, probe.MissingField.Value);
+            if (!madeProgress)
+            {
+                Log.Log($"Lazy scan metric {probe.MissingField.Value} made no progress, falling back to full scan.");
+                TrainingScanSnapshot fullSnapshot = await RunFullScanAsync(ctx);
+                TrainingDecisionResult fullDecision = TrainingRuleEngine.Evaluate(fullSnapshot.ToDecisionContext(profile, profileName), profile);
+                return (fullSnapshot, fullDecision);
+            }
         }
     }
 
-    private async Task EnsureMetricAsync(GameContext ctx, TrainingMetricScanState state, TrainingRuleField field)
+    private async Task<bool> EnsureMetricAsync(GameContext ctx, TrainingMetricScanState state, TrainingRuleField field)
     {
         switch (field)
         {
@@ -282,21 +289,23 @@ public class TrainingSelectHandler : IRaceHandler
                 if (!state.StrengthStat.HasValue)
                 {
                     using var shot = ctx.CaptureScreen();
-                    state.UpdateStats(NormalizeStat(await TrainingPowerStat.ReadPowerStatAsync(shot)), null);
+                    bool madeProgress = state.UpdateStats(NormalizeStat(await TrainingPowerStat.ReadPowerStatAsync(shot)), null);
                     Log.Log($"Lazy scan stat: strength={FormatStat(state.StrengthStat)}");
+                    return madeProgress;
                 }
 
-                return;
+                return true;
 
             case TrainingRuleField.StaminaStat:
                 if (!state.StaminaStat.HasValue)
                 {
                     using var shot = ctx.CaptureScreen();
-                    state.UpdateStats(null, NormalizeStat(await TrainingPowerStat.ReadStaminaStatAsync(shot)));
+                    bool madeProgress = state.UpdateStats(null, NormalizeStat(await TrainingPowerStat.ReadStaminaStatAsync(shot)));
                     Log.Log($"Lazy scan stat: stamina={FormatStat(state.StaminaStat)}");
+                    return madeProgress;
                 }
 
-                return;
+                return true;
 
             case TrainingRuleField.AnyFailRate:
                 for (int i = 0; i < TrainingOptions.Length; i++)
@@ -307,32 +316,32 @@ public class TrainingSelectHandler : IRaceHandler
                     }
                 }
 
-                return;
+                return true;
 
             case TrainingRuleField.StrengthIcons:
             case TrainingRuleField.StrengthFailRate:
                 await EnsureRowMetricsAsync(ctx, state, 0);
-                return;
+                return true;
 
             case TrainingRuleField.StaminaIcons:
             case TrainingRuleField.StaminaFailRate:
                 await EnsureRowMetricsAsync(ctx, state, 1);
-                return;
+                return true;
 
             case TrainingRuleField.AgilityIcons:
             case TrainingRuleField.AgilityFailRate:
                 await EnsureRowMetricsAsync(ctx, state, 2);
-                return;
+                return true;
 
             case TrainingRuleField.FocusIcons:
             case TrainingRuleField.FocusFailRate:
                 await EnsureRowMetricsAsync(ctx, state, 3);
-                return;
+                return true;
 
             case TrainingRuleField.GuardIcons:
             case TrainingRuleField.GuardFailRate:
                 await EnsureRowMetricsAsync(ctx, state, 4);
-                return;
+                return true;
 
             default:
                 throw new ArgumentOutOfRangeException(nameof(field), field, "Unknown training metric field.");
@@ -389,10 +398,13 @@ public class TrainingSelectHandler : IRaceHandler
 
         public bool HasFailRate(int rowIndex) => (KnownFailRateMask & (1 << rowIndex)) != 0;
 
-        public void UpdateStats(int? strengthStat, int? staminaStat)
+        public bool UpdateStats(int? strengthStat, int? staminaStat)
         {
+            int? previousStrength = StrengthStat;
+            int? previousStamina = StaminaStat;
             StrengthStat = MergeNonDecreasingStat(StrengthStat, strengthStat);
             StaminaStat = MergeNonDecreasingStat(StaminaStat, staminaStat);
+            return StrengthStat != previousStrength || StaminaStat != previousStamina;
         }
 
         public void SetRowMetrics(int rowIndex, int iconCount, int failRate)

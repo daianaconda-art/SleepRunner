@@ -131,7 +131,8 @@ internal static class TradeBuyActions
         GameContext ctx,
         int slotIndex,
         TradeDetailOcr.OfferSlotRegion slot,
-        bool allowReuseCurrentDetail = false)
+        bool allowReuseCurrentDetail = false,
+        bool requireOwnedAfterClick = true)
     {
         using (var current = ctx.CaptureScreen())
         {
@@ -156,7 +157,8 @@ internal static class TradeBuyActions
             return null;
         }
 
-        if (IsOfferDetailReady(shot) && IsCurrentDetailOwnedBySlot(shot, slotIndex))
+        if (IsOfferDetailReady(shot) &&
+            (!requireOwnedAfterClick || IsCurrentDetailOwnedBySlot(shot, slotIndex)))
         {
             var clone = shot.Clone();
             shot.Dispose();

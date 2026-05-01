@@ -201,7 +201,7 @@ public class TradePurchaseHandler : IRaceHandler
     {
         int detectedBudget = TradeDetailOcr.ReadCurrentMoney(frame.Screenshot);
         if (!TradeBudgetPolicy.TryResolveBudget(detectedBudget, out _))
-            return "Trade screen: budget OCR failed -> wait manual";
+            return "Trade screen: budget OCR unavailable -> evaluate offers by trade state";
 
         return "Trade screen: evaluate offers and buy must-buy items";
     }

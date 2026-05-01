@@ -8,6 +8,8 @@ internal static class HudMoneyOcr
 {
     public static readonly (double X, double Y, double W, double H)[] Regions =
     [
+        (0.55, 0.03, 0.11, 0.07),
+        (0.57, 0.03, 0.09, 0.07),
         (0.58, 0.00, 0.36, 0.14),
         (0.42, 0.00, 0.30, 0.14),
         (0.66, 0.00, 0.30, 0.12),
@@ -23,6 +25,13 @@ internal static class HudMoneyOcr
             var regionCandidates = ReadRegionCandidates(screenshot, r, i).ToList();
             logs.Add($"({r.X:F2},{r.Y:F2}) cands=[{string.Join(", ", regionCandidates.Take(4).Select(c => $"'{ClipForLog(c.Text, 12)}'"))}]");
             candidates.AddRange(regionCandidates);
+        }
+
+        if (TryBuildCoinAnchoredMoneyRect(screenshot, out var coinRect))
+        {
+            var coinCandidates = ReadRegionCandidates(screenshot, coinRect, regionIndex: 0, source: "coin-anchor").ToList();
+            logs.Add($"coin@({coinRect.X},{coinRect.Y},{coinRect.Width},{coinRect.Height}) cands=[{string.Join(", ", coinCandidates.Take(4).Select(c => $"'{ClipForLog(c.Text, 12)}'"))}]");
+            candidates.AddRange(coinCandidates);
         }
 
         bool ok = TryResolveBestCandidate(candidates, out money);
@@ -47,11 +56,20 @@ internal static class HudMoneyOcr
         int regionIndex)
     {
         var rect = ToPixelRect(screenshot, region.X, region.Y, region.W, region.H);
+        return ReadRegionCandidates(screenshot, rect, regionIndex, "processed");
+    }
+
+    private static IEnumerable<MoneyCandidate> ReadRegionCandidates(
+        Mat screenshot,
+        Rect rect,
+        int regionIndex,
+        string source)
+    {
         using var roi = new Mat(screenshot, rect);
 
         foreach (string candidate in ReadMoneyRegionCandidates(roi))
         {
-            MoneyCandidate? parsed = BuildCandidate(candidate, regionIndex, "processed");
+            MoneyCandidate? parsed = BuildCandidate(candidate, regionIndex, source);
             if (parsed.HasValue)
                 yield return parsed.Value;
         }
@@ -73,12 +91,16 @@ internal static class HudMoneyOcr
         var results = new List<string>();
 
         using (var full = roi.Clone())
+        {
             YieldCandidate(OcrHelper.RecognizeMat(full).GetAwaiter().GetResult(), results);
+            YieldCandidate(OcrHelper.RecognizeMat(full, "en-US").GetAwaiter().GetResult(), results);
+        }
 
         using (var enlarged = new Mat())
         {
             Cv2.Resize(roi, enlarged, new OpenCvSharp.Size(), 4.0, 4.0, InterpolationFlags.Cubic);
             YieldCandidate(OcrHelper.RecognizeMat(enlarged).GetAwaiter().GetResult(), results);
+            YieldCandidate(OcrHelper.RecognizeMat(enlarged, "en-US").GetAwaiter().GetResult(), results);
 
             foreach (bool invert in new[] { false, true })
             {
@@ -90,6 +112,7 @@ internal static class HudMoneyOcr
                     (invert ? ThresholdTypes.BinaryInv : ThresholdTypes.Binary) | ThresholdTypes.Otsu);
                 Cv2.CvtColor(binary, binaryBgr, ColorConversionCodes.GRAY2BGR);
                 YieldCandidate(OcrHelper.RecognizeMat(binaryBgr).GetAwaiter().GetResult(), results);
+                YieldCandidate(OcrHelper.RecognizeMat(binaryBgr, "en-US").GetAwaiter().GetResult(), results);
             }
         }
 
@@ -99,6 +122,7 @@ internal static class HudMoneyOcr
             using var enlargedSub = new Mat();
             Cv2.Resize(sub, enlargedSub, new OpenCvSharp.Size(), 5.0, 5.0, InterpolationFlags.Cubic);
             YieldCandidate(OcrHelper.RecognizeMat(enlargedSub).GetAwaiter().GetResult(), results);
+            YieldCandidate(OcrHelper.RecognizeMat(enlargedSub, "en-US").GetAwaiter().GetResult(), results);
 
             using var gray = new Mat();
             using var binary = new Mat();
@@ -107,6 +131,7 @@ internal static class HudMoneyOcr
             Cv2.Threshold(gray, binary, 0, 255, ThresholdTypes.Binary | ThresholdTypes.Otsu);
             Cv2.CvtColor(binary, binaryBgr, ColorConversionCodes.GRAY2BGR);
             YieldCandidate(OcrHelper.RecognizeMat(binaryBgr).GetAwaiter().GetResult(), results);
+            YieldCandidate(OcrHelper.RecognizeMat(binaryBgr, "en-US").GetAwaiter().GetResult(), results);
         }
 
         return results;
@@ -116,9 +141,73 @@ internal static class HudMoneyOcr
     {
         int w = roi.Width;
         int h = roi.Height;
+        yield return new Rect(0, 0, Math.Max(1, (int)(w * 0.40)), h);
+        yield return new Rect(0, 0, Math.Max(1, (int)(w * 0.55)), h);
+        yield return new Rect((int)(w * 0.05), 0, Math.Max(1, (int)(w * 0.50)), h);
         yield return new Rect((int)(w * 0.15), 0, Math.Max(1, (int)(w * 0.60)), h);
         yield return new Rect((int)(w * 0.30), 0, Math.Max(1, (int)(w * 0.50)), h);
         yield return new Rect((int)(w * 0.45), 0, Math.Max(1, (int)(w * 0.40)), h);
+    }
+
+    internal static bool TryBuildCoinAnchoredMoneyRect(Mat screenshot, out Rect rect)
+    {
+        rect = default;
+        if (screenshot.Empty())
+            return false;
+
+        var searchRect = ToPixelRect(screenshot, 0.50, 0.02, 0.22, 0.09);
+        using var roi = new Mat(screenshot, searchRect);
+        if (roi.Empty())
+            return false;
+
+        using var hsv = new Mat();
+        using var mask = new Mat();
+        Cv2.CvtColor(roi, hsv, ColorConversionCodes.BGR2HSV);
+        Cv2.InRange(hsv, new Scalar(10, 45, 90), new Scalar(45, 255, 255), mask);
+
+        using var kernel = Cv2.GetStructuringElement(MorphShapes.Ellipse, new OpenCvSharp.Size(3, 3));
+        Cv2.MorphologyEx(mask, mask, MorphTypes.Open, kernel);
+        Cv2.FindContours(mask, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+
+        Rect? best = null;
+        double bestScore = 0;
+        foreach (var contour in contours)
+        {
+            double area = Cv2.ContourArea(contour);
+            if (area < 80 || area > 2500)
+                continue;
+
+            var coin = Cv2.BoundingRect(contour);
+            if (coin.Width < 8 || coin.Height < 8)
+                continue;
+
+            double squareness = Math.Min(coin.Width, coin.Height) / (double)Math.Max(coin.Width, coin.Height);
+            if (squareness < 0.45)
+                continue;
+
+            double score = area * squareness;
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = coin;
+            }
+        }
+
+        if (best == null)
+            return false;
+
+        var b = best.Value;
+        int coinRight = searchRect.X + b.X + b.Width;
+        int centerY = searchRect.Y + b.Y + b.Height / 2;
+        int x = Math.Clamp(coinRight + (int)(screenshot.Width * 0.004), 0, screenshot.Width - 1);
+        int y = Math.Clamp(centerY - (int)(screenshot.Height * 0.025), 0, screenshot.Height - 1);
+        int w = Math.Min(Math.Max(50, (int)(screenshot.Width * 0.075)), screenshot.Width - x);
+        int h = Math.Min(Math.Max(45, (int)(screenshot.Height * 0.055)), screenshot.Height - y);
+        if (w <= 0 || h <= 0)
+            return false;
+
+        rect = new Rect(x, y, w, h);
+        return true;
     }
 
     private static MoneyCandidate? BuildCandidate(string raw, int regionIndex, string source)
@@ -135,6 +224,8 @@ internal static class HudMoneyOcr
 
         if (source == "processed")
             score += 5;
+        else if (source == "coin-anchor")
+            score += 18;
 
         return new MoneyCandidate(money, score, NormalizeRaw(raw));
     }

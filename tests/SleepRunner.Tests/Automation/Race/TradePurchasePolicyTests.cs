@@ -1,10 +1,44 @@
 using System.Reflection;
+using System.Text.Json;
 using Xunit;
 
 namespace SleepRunner.Tests.Automation.Race;
 
 public class TradePurchasePolicyTests
 {
+    [Fact]
+    public void DefaultTradeProfile_does_not_buy_stamina_stat_increase_items()
+    {
+        string profilePath = Path.Combine(AppContext.BaseDirectory, "assets", "trade", "default.json");
+        using var doc = JsonDocument.Parse(File.ReadAllText(profilePath));
+        string[] keywords = doc.RootElement
+            .GetProperty("keywords")
+            .EnumerateArray()
+            .Select(e => e.GetString())
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s!)
+            .ToArray();
+
+        Assert.DoesNotContain("体力", keywords);
+    }
+
+    [Fact]
+    public void AttackTradeProfile_buys_only_strength_training_books_not_all_books()
+    {
+        string profilePath = Path.Combine(AppContext.BaseDirectory, "assets", "trade", "attack.json");
+        using var doc = JsonDocument.Parse(File.ReadAllText(profilePath));
+        string[] keywords = doc.RootElement
+            .GetProperty("keywords")
+            .EnumerateArray()
+            .Select(e => e.GetString())
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s!)
+            .ToArray();
+
+        Assert.DoesNotContain("禁书", keywords);
+        Assert.Contains("力量训练的禁书", keywords);
+    }
+
     [Fact]
     public void BuildPurchaseQueue_skips_strength_items_when_strength_is_capped()
     {
@@ -59,6 +93,40 @@ public class TradePurchasePolicyTests
         Assert.Equal([1], queue);
     }
 
+    [Fact]
+    public void IsOfferReadable_allows_strong_detail_effect_when_slot_text_is_unreliable()
+    {
+        object strengthOffer = CreateTradeOffer(
+            slotIndex: 1,
+            price: 16,
+            isStrengthIncrease: true,
+            strengthGain: 12,
+            affectsStrengthStat: true);
+        Type offerType = strengthOffer.GetType();
+        SetProperty(offerType, strengthOffer, "HasReliableSlotText", false);
+        SetProperty(offerType, strengthOffer, "EffectText", "效果力量增加12");
+        SetProperty(offerType, strengthOffer, "SlotText", "");
+
+        Assert.True(InvokeIsOfferReadable(strengthOffer));
+    }
+
+    [Fact]
+    public void IsStrongDetailPurchaseCandidate_accepts_strength_effect_from_clicked_detail()
+    {
+        object strengthOffer = CreateTradeOffer(
+            slotIndex: 1,
+            price: 16,
+            isStrengthIncrease: true,
+            strengthGain: 12,
+            affectsStrengthStat: true);
+        Type offerType = strengthOffer.GetType();
+        SetProperty(offerType, strengthOffer, "HasReliableSlotText", false);
+        SetProperty(offerType, strengthOffer, "EffectText", "效果力量增加12");
+        SetProperty(offerType, strengthOffer, "SlotText", "");
+
+        Assert.True(InvokeIsStrongDetailPurchaseCandidate(strengthOffer));
+    }
+
     private static IReadOnlyList<int> InvokeBuildPurchaseQueue(
         object[] offers,
         bool preferStrengthItems,
@@ -108,6 +176,30 @@ public class TradePurchasePolicyTests
         }
 
         return queueSlots;
+    }
+
+    private static bool InvokeIsOfferReadable(object offer)
+    {
+        Type policyType = Type.GetType("SleepRunner.Automation.Race.Handlers.Trade.TradePurchasePolicy, SleepRunner")
+            ?? throw new Xunit.Sdk.XunitException("TradePurchasePolicy type was not found.");
+        MethodInfo method = policyType.GetMethod(
+                                "IsOfferReadable",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("TradePurchasePolicy.IsOfferReadable was not found.");
+
+        return (bool)method.Invoke(null, [offer])!;
+    }
+
+    private static bool InvokeIsStrongDetailPurchaseCandidate(object offer)
+    {
+        Type policyType = Type.GetType("SleepRunner.Automation.Race.Handlers.Trade.TradePurchasePolicy, SleepRunner")
+            ?? throw new Xunit.Sdk.XunitException("TradePurchasePolicy type was not found.");
+        MethodInfo method = policyType.GetMethod(
+                                "IsStrongDetailPurchaseCandidate",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("TradePurchasePolicy.IsStrongDetailPurchaseCandidate was not found.");
+
+        return (bool)method.Invoke(null, [offer])!;
     }
 
     private static object CreateTradeOffer(
