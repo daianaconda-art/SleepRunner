@@ -37,6 +37,12 @@ public class EventHandler : IRaceHandler
             return false;
         }
 
+        if (MainMenuScreenChecks.IsMainMenuScreen(screenshot, out string menuSummary))
+        {
+            Log.Log($"CanHandle yield: main menu detected ({menuSummary})");
+            return false;
+        }
+
         string marker = EventOcrRegions.ReadJourneyMarkerText(screenshot);
         if (EventScreenChecks.IsJourneyEventMarker(marker))
         {

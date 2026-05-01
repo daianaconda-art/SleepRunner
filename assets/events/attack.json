@@ -1022,6 +1022,19 @@
       ],
       "option_y_overrides": [0.651, 0.718],
       "note": "现场登记：固定选2(吃点好吃的忘掉吧)。Y 由 --probe-event-y 行级 OCR 实测得：选项1 Y=0.651, 选项2 Y=0.718（截图 cli_test_20260420_142934.png）。标题OCR为“04月上旬”时间轴噪声，靠选项关键词命中。"
+    },
+    {
+      "id": "arkna_value_of_everything",
+      "event_name": "万物的价值",
+      "category": "06月上旬（当前截图登记）",
+      "status": "confirmed",
+      "recommended_option": 2,
+      "options": [
+        { "index": 1, "keyword": "等等，我先确认看看。", "alias": ["等等", "先确认看看", "确认看看"] },
+        { "index": 2, "keyword": "里面该不会有奇怪的东西吧？", "alias": ["奇怪的东西", "里面该不会", "该不会有奇怪"] }
+      ],
+      "option_y_overrides": [0.650, 0.719],
+      "note": "现场登记：2026-05-01 19:27:18 +08:00；截图 20260501_192718_manual.png；按用户要求默认选2。标题为阿尔克那事件“万物的价值”，当前时间为06月上旬。"
     }
   ]
 }

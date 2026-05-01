@@ -7,7 +7,7 @@ internal static class UiText
     internal static class App
     {
         public const string WindowTitle = "跑马助手";
-        public const string FooterHint = "按住标题栏可拖动  •  Esc 关闭  •  拖动边缘可调整大小";
+        public const string FooterHint = "Alt+Q 开始/停止  •  Esc 关闭  •  拖动边缘可调整大小";
         public const string Version = "版本 1.0";
     }
 

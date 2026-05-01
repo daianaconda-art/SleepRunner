@@ -151,6 +151,14 @@ internal static class EventScreenChecks
     public static bool IsMainMenuLikeText(string text)
     {
         if (string.IsNullOrEmpty(text)) return false;
+
+        int menuKeywordCount = CountMainMenuKeywords(text);
+        bool hasCommissionRoute = text.Contains("委托", StringComparison.Ordinal) ||
+                                  text.Contains("讨伐", StringComparison.Ordinal) ||
+                                  text.Contains("受理", StringComparison.Ordinal);
+        if (hasCommissionRoute && menuKeywordCount >= 2)
+            return true;
+
         if (text.Contains('+') ||
             text.Contains('。') ||
             text.Contains('！') ||

@@ -6,7 +6,7 @@ using SleepRunner.Vision;
 namespace SleepRunner.Automation.Race.Handlers;
 
 /// <summary>
-/// 旅程结束页：右侧出现“旅程结束”时直接结束脚本，不再继续主菜单决策。
+/// 旅程结束/结算页：出现结束或继承旅程奖励结算时直接结束脚本，不再继续主菜单决策。
 /// </summary>
 public sealed class JourneyEndHandler : IRaceHandler
 {
@@ -15,6 +15,10 @@ public sealed class JourneyEndHandler : IRaceHandler
 
     private static readonly (double X, double Y, double W, double H)[] JourneyEndRegions =
     [
+        (0.34, 0.12, 0.32, 0.12),
+        (0.30, 0.18, 0.40, 0.14),
+        (0.38, 0.27, 0.28, 0.08),
+        (0.42, 0.88, 0.20, 0.08),
         (0.74, 0.50, 0.22, 0.10),
         (0.72, 0.48, 0.24, 0.14),
         (0.70, 0.46, 0.28, 0.18),
@@ -70,11 +74,26 @@ public sealed class JourneyEndHandler : IRaceHandler
         if (string.IsNullOrEmpty(text))
             return false;
 
-        if (text.Contains("旅程结束", StringComparison.Ordinal))
+        if (text.Contains("旅程结束", StringComparison.Ordinal) ||
+            text.Contains("继承旅程", StringComparison.Ordinal))
             return true;
 
-        return text.Contains("旅程", StringComparison.Ordinal) &&
-               text.Contains("结束", StringComparison.Ordinal);
+        bool hasJourney = text.Contains("旅程", StringComparison.Ordinal);
+        bool hasEnd = text.Contains("结束", StringComparison.Ordinal);
+        bool hasSettlementScore = text.Contains("总获得潜质点数", StringComparison.Ordinal) ||
+                                  (text.Contains("潜质点数", StringComparison.Ordinal) &&
+                                   (text.Contains("总获得", StringComparison.Ordinal) ||
+                                    text.Contains("获得", StringComparison.Ordinal)));
+        bool hasJourneyFarewell = hasJourney &&
+                                  (text.Contains("画下句号", StringComparison.Ordinal) ||
+                                   text.Contains("救援者告别", StringComparison.Ordinal));
+        bool hasRefundReward = text.Contains("古币", StringComparison.Ordinal) ||
+                               text.Contains("护符", StringComparison.Ordinal) ||
+                               text.Contains("换取奖励", StringComparison.Ordinal);
+
+        return (hasJourney && hasEnd) ||
+               hasSettlementScore ||
+               (hasJourneyFarewell && hasRefundReward);
     }
 
     private static string NormalizeOcr(string raw)

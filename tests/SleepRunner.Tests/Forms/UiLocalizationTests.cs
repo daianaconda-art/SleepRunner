@@ -29,7 +29,7 @@ public class UiLocalizationTests
             Assert.Contains("配置方案", texts);
             Assert.Contains("训练规则", texts);
             Assert.Contains("配置目录", texts);
-            Assert.Contains("按住标题栏可拖动  •  Esc 关闭  •  拖动边缘可调整大小", texts);
+            Assert.Contains("Alt+Q 开始/停止  •  Esc 关闭  •  拖动边缘可调整大小", texts);
             Assert.Contains("版本 1.0", texts);
         });
     }
