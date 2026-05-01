@@ -64,6 +64,7 @@ public class UiLocalizationTests
 
             Assert.Contains("等待倍率", texts);
             Assert.Contains("点击速度", texts);
+            Assert.Contains("红色委托", texts);
             Assert.DoesNotContain("失败率上限", texts);
             Assert.DoesNotContain("猛攻阈值", texts);
             Assert.DoesNotContain("养成方向", texts);

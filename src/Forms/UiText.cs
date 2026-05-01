@@ -62,7 +62,7 @@ internal static class UiText
         public const string BuildDirectionTitle = "养成方向";
         public const string BuildDirectionHint = "本轮跑马的策略基调";
         public static readonly string[] BuildSegments = ["攻击", "生存"];
-        public const string AppraiseDifficultyTitle = "评鉴战";
+        public const string AppraiseDifficultyTitle = "红色委托";
         public const string AppraiseDifficultyHint = "普通选第2项，困难选第3项";
         public static readonly string[] AppraiseDifficultySegments = ["普通", "困难"];
     }
