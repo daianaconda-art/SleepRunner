@@ -1,0 +1,40 @@
+{
+  "_comment": "攻击向卡片优先级；列表顺序即优先级，靠前优先。whitelist 命中 title/card 任一关键词后才走 priority 匹配，留空 = 直接按 priority。保存即热重载（最快 2 秒生效）。",
+  "priority_keywords": [
+    { "label": "暴击率",   "keywords": ["暴击率", "暴率"] },
+    { "label": "攻击力",   "keywords": ["攻击力", "攻击"] },
+    { "label": "暴击伤害", "keywords": ["暴击伤害", "暴击伤", "爆伤"] }
+  ],
+  "whitelist": [
+    {
+      "id": "slime_set_cards",
+      "title_keywords": [],
+      "card_keywords": [
+        "沾有史莱姆的手套",
+        "沾有史莱姆的眼镜",
+        "沾有史莱姆的披风"
+      ]
+    },
+    {
+      "id": "apocalypse_new_set_cards",
+      "title_keywords": [],
+      "card_keywords": [
+        "启示录新型手套",
+        "启示录新型项链",
+        "启示录新型项炼",
+        "启示录新型裤子"
+      ]
+    },
+    {
+      "id": "first_battle_self_buff_set",
+      "title_keywords": [],
+      "card_keywords": [
+        "首次战斗开始时",
+        "自身的暴击率",
+        "自身的攻击力",
+        "自身的暴击伤害",
+        "自身的暴击伤"
+      ]
+    }
+  ]
+}

@@ -8,7 +8,7 @@ namespace SleepRunner.Automation.Race.Policy;
 /// 设计目标：
 /// - 用户可以在 assets/{events,cards,trade}/ 目录下放任意多个 JSON（每个文件 = 一种"风格"）
 /// - 工具运行时读"当前选中"的那一份；切换 profile 立即热更新（订阅方各自重读）
-/// - 默认 profile 名 = "default"，UI 启动时若没有选过则用这个
+/// - 默认 profile 名 = "speed"，UI 启动时若没有选过则用这个
 /// - 持久化由 UserSettings 负责，本类只负责"现在用哪个"+ "目录里有哪些"
 /// </summary>
 public static class RaceProfileManager
@@ -24,7 +24,7 @@ public static class RaceProfileManager
     private static string _cardsProfile = DefaultProfileName;
     private static string _tradeProfile = DefaultProfileName;
 
-    public const string DefaultProfileName = "default";
+    public const string DefaultProfileName = "speed";
 
     public static string EventsDir => Path.Combine(PathHelper.BaseDir, "assets", "events");
     public static string CardsDir => Path.Combine(PathHelper.BaseDir, "assets", "cards");
@@ -102,7 +102,7 @@ public static class RaceProfileManager
         }
     }
 
-    /// <summary>过滤路径分隔符与多余空白；空字符串回退为 default</summary>
+    /// <summary>过滤路径分隔符与多余空白；空字符串回退为默认 profile</summary>
     private static string SanitizeProfile(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return DefaultProfileName;

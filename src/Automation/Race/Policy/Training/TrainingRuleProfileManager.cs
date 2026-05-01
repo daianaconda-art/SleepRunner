@@ -6,7 +6,7 @@ public static class TrainingRuleProfileManager
 {
     public static event Action<string>? TrainingProfileChanged;
 
-    public const string DefaultProfileName = "default";
+    public const string DefaultProfileName = "speed";
 
     private static string _currentProfile = DefaultProfileName;
 

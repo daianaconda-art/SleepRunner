@@ -57,7 +57,7 @@ public sealed class UserSettings
 
     /// <summary>是否窗口置顶，方便覆盖在游戏窗口上</summary>
     [JsonPropertyName("top_most")]
-    public bool TopMost { get; set; } = true;
+    public bool TopMost { get; set; } = false;
 
     /// <summary>当前生效的事件 profile 名（assets/events/&lt;name&gt;.json，不带后缀）</summary>
     [JsonPropertyName("events_profile")]
