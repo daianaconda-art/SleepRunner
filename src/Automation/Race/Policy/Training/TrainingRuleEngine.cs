@@ -32,20 +32,15 @@ public static class TrainingRuleEngine
                 return ResolveProbe(context, rule, rule.Action);
             }
 
-            if (rule.Field is null || rule.Operator is null || !rule.Value.HasValue)
-            {
-                continue;
-            }
-
-            if (!context.TryGetMetric(rule.Field.Value, out int metric))
+            if (!TryProbeConditions(context, rule, out bool conditionsMatch, out TrainingRuleField? missingConditionField))
             {
                 return new TrainingRuleProbeResult
                 {
-                    MissingField = rule.Field.Value,
+                    MissingField = missingConditionField,
                 };
             }
 
-            if (!Matches(metric, rule.Operator.Value, rule.Value.Value))
+            if (!conditionsMatch)
             {
                 continue;
             }
@@ -89,17 +84,7 @@ public static class TrainingRuleEngine
                 return ResolveResult(context, rule, rule.Action);
             }
 
-            if (rule.Field is null || rule.Operator is null || !rule.Value.HasValue)
-            {
-                continue;
-            }
-
-            if (!context.TryGetMetric(rule.Field.Value, out int metric))
-            {
-                continue;
-            }
-
-            if (!Matches(metric, rule.Operator.Value, rule.Value.Value))
+            if (!EvaluateConditions(context, rule))
             {
                 continue;
             }
@@ -144,6 +129,86 @@ public static class TrainingRuleEngine
             UsedBuiltinDefault = false,
             Summary = $"profile={context.ProfileName}, matched={rule.Id}, action={action}, target={targetRowIndex}, builtin_default=False",
         };
+    }
+
+    private static bool TryProbeConditions(
+        TrainingDecisionContext context,
+        TrainingRuleCard rule,
+        out bool matches,
+        out TrainingRuleField? missingField)
+    {
+        matches = false;
+        missingField = null;
+
+        IReadOnlyList<TrainingRuleCondition> conditions = GetConditions(rule);
+        if (conditions.Count == 0)
+        {
+            return true;
+        }
+
+        foreach (TrainingRuleCondition condition in conditions)
+        {
+            if (!context.TryGetMetric(condition.Field, out int metric))
+            {
+                missingField = condition.Field;
+                return false;
+            }
+
+            if (!Matches(metric, condition.Operator, condition.Value))
+            {
+                return true;
+            }
+        }
+
+        matches = true;
+        return true;
+    }
+
+    private static bool EvaluateConditions(TrainingDecisionContext context, TrainingRuleCard rule)
+    {
+        IReadOnlyList<TrainingRuleCondition> conditions = GetConditions(rule);
+        if (conditions.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (TrainingRuleCondition condition in conditions)
+        {
+            if (!context.TryGetMetric(condition.Field, out int metric))
+            {
+                return false;
+            }
+
+            if (!Matches(metric, condition.Operator, condition.Value))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static IReadOnlyList<TrainingRuleCondition> GetConditions(TrainingRuleCard rule)
+    {
+        if (rule.Conditions.Count > 0)
+        {
+            return rule.Conditions;
+        }
+
+        if (rule.Field is null || rule.Operator is null || !rule.Value.HasValue)
+        {
+            return [];
+        }
+
+        return
+        [
+            new TrainingRuleCondition
+            {
+                Field = rule.Field.Value,
+                Operator = rule.Operator.Value,
+                Value = rule.Value.Value,
+            },
+        ];
     }
 
     private static bool Matches(int metric, TrainingRuleOperator op, int value) => op switch

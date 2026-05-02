@@ -92,6 +92,49 @@ public class TrainingRuleLoaderTests
     }
 
     [Fact]
+    public void LoadFromJson_parses_a_two_condition_rule_as_a_normal_rule()
+    {
+        var json = """
+        {
+          "rules": [
+            {
+              "id": "safe_strength",
+              "conditions": [
+                {
+                  "field": "strength_icons",
+                  "operator": ">=",
+                  "value": 3
+                },
+                {
+                  "field": "strength_fail_rate",
+                  "operator": "<",
+                  "value": 40
+                }
+              ],
+              "action": "train_strength",
+              "enabled": true
+            },
+            {
+              "action": "rest",
+              "enabled": true
+            }
+          ]
+        }
+        """;
+
+        var profile = TrainingRuleLoader.LoadFromJson(json, "two-conditions.json");
+
+        var first = profile.Rules[0];
+        Assert.Equal("safe_strength", first.Id);
+        Assert.False(first.IsFallback);
+        Assert.Equal(TrainingRuleField.StrengthIcons, first.Field);
+        Assert.Equal(TrainingRuleOperator.GreaterThanOrEqual, first.Operator);
+        Assert.Equal(3, first.Value);
+        Assert.Equal(TrainingDecisionAction.TrainStrength, first.Action);
+        Assert.True(first.Enabled);
+    }
+
+    [Fact]
     public void LoadFromJson_rejects_a_rule_with_only_a_field()
     {
         var json = """

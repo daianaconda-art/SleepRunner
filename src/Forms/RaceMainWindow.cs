@@ -25,6 +25,8 @@ namespace SleepRunner.Forms;
 public sealed class RaceMainWindow : Form
 {
     // ---------- 常量 ----------
+    private const string IdleAppIconResourceName = "SleepRunner.AppIcon.ico";
+    private const string RunningAppIconResourceName = "SleepRunner.RunningAppIcon.ico";
     private const int DefaultPanelWidth = 408;
     private const int MinPanelWidth = 392;
     private const int MaxPanelWidth = 760;
@@ -57,6 +59,8 @@ public sealed class RaceMainWindow : Form
     // ---------- 状态 ----------
     private readonly IRaceController _controller;
     private readonly UserSettings _settings;
+    private readonly Icon _idleIcon;
+    private readonly Icon _runningIcon;
 
     private RaceStatusIndicator _status = null!;
     private RaceActionButtons _actions = null!;
@@ -89,15 +93,26 @@ public sealed class RaceMainWindow : Form
 
     public RaceMainWindow() : this(new RaceAutomationController()) { }
 
+    private static Icon LoadAppIcon(string resourceName)
+    {
+        using Stream stream = typeof(RaceMainWindow).Assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException($"Embedded app icon resource '{resourceName}' was not found.");
+        using var icon = new Icon(stream);
+        return (Icon)icon.Clone();
+    }
+
     /// <summary>测试 / 替身用：注入自定义 IRaceController 实现</summary>
     internal RaceMainWindow(IRaceController controller)
     {
         _controller = controller;
         _settings = UserSettings.Load();
         _settings.ApplyToRaceConfig();
+        _idleIcon = LoadAppIcon(IdleAppIconResourceName);
+        _runningIcon = LoadAppIcon(RunningAppIconResourceName);
 
         // ---------- 窗体基本属性 ----------
         Text = UiText.App.WindowTitle;
+        Icon = _idleIcon;
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
         BackColor = RaceTheme.Bg;
@@ -889,10 +904,14 @@ public sealed class RaceMainWindow : Form
     {
         _status.ApplyState(state);
         _actions.ApplyState(state);
+        Icon = UsesRunningIcon(state) ? _runningIcon : _idleIcon;
         // Idle / Stopped 时清掉活动描述，让默认副标题（"Ready to start" 等）回归
         if (state == RaceState.Idle || state == RaceState.Stopped)
             _status.SetActivity(null);
     }
+
+    private static bool UsesRunningIcon(RaceState state) =>
+        state is RaceState.Running or RaceState.Paused or RaceState.Stopping;
 
     // ---------- 设置持久化 ----------
     /// <summary>调度一次延迟保存：连续触发只在最后一次后 600ms 落盘</summary>

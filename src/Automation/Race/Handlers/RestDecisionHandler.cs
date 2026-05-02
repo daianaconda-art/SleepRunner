@@ -51,7 +51,7 @@ public class RestDecisionHandler : IRaceHandler
 
     // 点击最终休息确认按钮（和训练界面底部主按钮区域一致）
     private const double ConfirmRestBtnX = 0.89;
-    private const double ConfirmRestBtnY = 0.925;
+    private const double ConfirmRestBtnY = 0.89;
     private static readonly (double X, double Y, double W, double H)[] ConfirmRestTextRegions =
     [
         (0.78, 0.82, 0.18, 0.14),

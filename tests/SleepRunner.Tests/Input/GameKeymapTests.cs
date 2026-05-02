@@ -1,0 +1,77 @@
+using SleepRunner.Input;
+using Xunit;
+
+namespace SleepRunner.Tests.Input;
+
+public class GameKeymapTests
+{
+    [Fact]
+    public void Default_trade_purchase_holds_alt_and_taps_space()
+    {
+        GameKeySequence sequence = GameKeymap.Default.GetSequence(GameActionKey.TradePurchase);
+
+        AssertAltChordTap(sequence, KeyboardSimulator.VK_SPACE);
+    }
+
+    [Theory]
+    [InlineData("TradeSelectSlot1", KeyboardSimulator.VK_1)]
+    [InlineData("TradeSelectSlot2", KeyboardSimulator.VK_2)]
+    [InlineData("TradeSelectSlot3", KeyboardSimulator.VK_3)]
+    public void Default_trade_slot_selection_uses_alt_chord_number_keys(string actionName, ushort key)
+    {
+        var action = Enum.Parse<GameActionKey>(actionName);
+
+        GameKeySequence sequence = GameKeymap.Default.GetSequence(action);
+
+        AssertAltChordTap(sequence, key);
+    }
+
+    [Fact]
+    public void AltChordTap_holds_alt_and_taps_the_target_key()
+    {
+        GameKeySequence sequence = GameKeySequence.AltChordTap(KeyboardSimulator.VK_SPACE);
+
+        AssertAltChordTap(sequence, KeyboardSimulator.VK_SPACE);
+    }
+
+    private static void AssertAltChordTap(GameKeySequence sequence, ushort key)
+    {
+        Assert.Collection(
+            sequence.Steps,
+            step =>
+            {
+                Assert.Equal(GameKeyStepKind.KeyDown, step.Kind);
+                Assert.Equal(KeyboardSimulator.VK_LMENU, step.VirtualKey);
+            },
+            step =>
+            {
+                Assert.Equal(GameKeyStepKind.Delay, step.Kind);
+                Assert.Equal(50, step.DelayMs);
+            },
+            step =>
+            {
+                Assert.Equal(GameKeyStepKind.KeyDown, step.Kind);
+                Assert.Equal(key, step.VirtualKey);
+            },
+            step =>
+            {
+                Assert.Equal(GameKeyStepKind.Delay, step.Kind);
+                Assert.Equal(25, step.DelayMs);
+            },
+            step =>
+            {
+                Assert.Equal(GameKeyStepKind.KeyUp, step.Kind);
+                Assert.Equal(key, step.VirtualKey);
+            },
+            step =>
+            {
+                Assert.Equal(GameKeyStepKind.Delay, step.Kind);
+                Assert.Equal(30, step.DelayMs);
+            },
+            step =>
+            {
+                Assert.Equal(GameKeyStepKind.KeyUp, step.Kind);
+                Assert.Equal(KeyboardSimulator.VK_LMENU, step.VirtualKey);
+            });
+    }
+}

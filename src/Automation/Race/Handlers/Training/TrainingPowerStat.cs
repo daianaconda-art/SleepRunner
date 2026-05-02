@@ -152,6 +152,12 @@ internal static class TrainingPowerStat
             return false;
         }
 
+        if (Regex.IsMatch(text, @"^[^\d]*(?:/|\uFF0F)\s*1250\D*$"))
+        {
+            reason = "max-denominator-only";
+            return false;
+        }
+
         var match = Regex.Match(text, @"(\d{1,4})\s*/\s*1250");
         if (match.Success && int.TryParse(match.Groups[1].Value, out int slashVal) && slashVal >= 0 && slashVal <= 1300)
         { value = slashVal; reason = "current/max"; return true; }

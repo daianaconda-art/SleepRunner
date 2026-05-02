@@ -24,12 +24,15 @@ public static class KeyboardSimulator
 
     private const uint INPUT_KEYBOARD = 1;
     private const uint KEYEVENTF_KEYUP = 0x0002;
+    private const uint KEYEVENTF_SCANCODE = 0x0008;
 
     // 常用虚拟键码
     public const ushort VK_MENU = 0x12;    // Alt
+    public const ushort VK_LMENU = 0xA4;   // Left Alt
     public const ushort VK_CONTROL = 0x11; // Ctrl
     public const ushort VK_SHIFT = 0x10;   // Shift
     public const ushort VK_ESCAPE = 0x1B;  // Esc
+    public const ushort VK_SPACE = 0x20;   // Space
     public const ushort VK_1 = 0x31;
     public const ushort VK_2 = 0x32;
     public const ushort VK_3 = 0x33;
@@ -58,20 +61,64 @@ public static class KeyboardSimulator
     /// </summary>
     public static async Task SendHotkey(IntPtr hWnd, ushort modifier, ushort key)
     {
-        await EnsureWindowFocused(hWnd);
+        if (!await EnsureWindowFocused(hWnd))
+        {
+            Log.Log($"Hotkey aborted: target window not focused before modifier=0x{modifier:X2} + key=0x{key:X2}.");
+            return;
+        }
 
-        // 按下修饰键，保持足够久让游戏检测到
-        SendSingleKey(modifier, false);
-        await Task.Delay(500);
+        bool modifierDown = false;
+        bool keyDown = false;
+        try
+        {
+            if (!IsWindowFocused(hWnd))
+            {
+                Log.Log($"Hotkey aborted: target window lost focus before modifier down 0x{modifier:X2}.");
+                return;
+            }
 
-        // 按下并释放目标键
-        SendSingleKey(key, false);
-        await Task.Delay(100);
-        SendSingleKey(key, true);
-        await Task.Delay(200);
+            // 按下修饰键，保持足够久让游戏检测到
+            if (!SendSingleKey(modifier, false))
+            {
+                Log.Log($"Hotkey aborted: modifier down failed 0x{modifier:X2}.");
+                return;
+            }
+            modifierDown = true;
+            await Task.Delay(500);
 
-        // 释放修饰键
-        SendSingleKey(modifier, true);
+            if (!IsWindowFocused(hWnd))
+            {
+                Log.Log($"Hotkey aborted: target window lost focus before key down 0x{key:X2}.");
+                return;
+            }
+
+            // 按下并释放目标键
+            if (!SendSingleKey(key, false))
+            {
+                Log.Log($"Hotkey aborted: key down failed 0x{key:X2}.");
+                return;
+            }
+            keyDown = true;
+            await Task.Delay(100);
+
+            if (!IsWindowFocused(hWnd))
+            {
+                Log.Log($"Hotkey aborted: target window lost focus before key up 0x{key:X2}.");
+                return;
+            }
+
+            if (!SendSingleKey(key, true))
+                Log.Log($"Hotkey key up failed 0x{key:X2}.");
+            keyDown = false;
+            await Task.Delay(200);
+        }
+        finally
+        {
+            if (keyDown)
+                SendSingleKey(key, true);
+            if (modifierDown)
+                SendSingleKey(modifier, true);
+        }
 
         Log.Log($"Hotkey sent: modifier=0x{modifier:X2} + key=0x{key:X2}");
         await Task.Delay(_rng.Next(50, 120));
@@ -82,14 +129,82 @@ public static class KeyboardSimulator
     /// </summary>
     public static async Task SendKey(IntPtr hWnd, ushort key)
     {
-        await EnsureWindowFocused(hWnd);
+        if (!await EnsureWindowFocused(hWnd))
+        {
+            Log.Log($"Key aborted: target window not focused before key=0x{key:X2}.");
+            return;
+        }
 
-        SendSingleKey(key, false);
-        await Task.Delay(_rng.Next(30, 80));
-        SendSingleKey(key, true);
+        bool keyDown = false;
+        try
+        {
+            if (!IsWindowFocused(hWnd))
+            {
+                Log.Log($"Key aborted: target window lost focus before key down 0x{key:X2}.");
+                return;
+            }
+
+            if (!SendSingleKey(key, false))
+            {
+                Log.Log($"Key aborted: key down failed 0x{key:X2}.");
+                return;
+            }
+            keyDown = true;
+            await Task.Delay(_rng.Next(30, 80));
+
+            if (!IsWindowFocused(hWnd))
+            {
+                Log.Log($"Key aborted: target window lost focus before key up 0x{key:X2}.");
+                return;
+            }
+
+            if (!SendSingleKey(key, true))
+                Log.Log($"Key up failed 0x{key:X2}.");
+            keyDown = false;
+        }
+        finally
+        {
+            if (keyDown)
+                SendSingleKey(key, true);
+        }
 
         Log.Log($"Key sent: 0x{key:X2}");
         await Task.Delay(_rng.Next(50, 120));
+    }
+
+    public static bool SendKeyDown(ushort key)
+    {
+        return SendSingleKey(key, false);
+    }
+
+    public static bool SendKeyUp(ushort key)
+    {
+        return SendSingleKey(key, true);
+    }
+
+    public static bool IsWindowFocused(IntPtr hWnd)
+    {
+        return hWnd != IntPtr.Zero && GetForegroundWindow() == hWnd;
+    }
+
+    public static ushort GetHardwareScanCode(ushort virtualKey)
+    {
+        return virtualKey switch
+        {
+            VK_ESCAPE => 0x01,
+            VK_1 => 0x02,
+            VK_2 => 0x03,
+            VK_3 => 0x04,
+            VK_4 => 0x05,
+            VK_5 => 0x06,
+            VK_Z => 0x2C,
+            VK_SPACE => 0x39,
+            VK_LMENU => 0x38,
+            VK_MENU => 0x38,
+            VK_CONTROL => 0x1D,
+            VK_SHIFT => 0x2A,
+            _ => 0,
+        };
     }
 
     /// <summary>
@@ -124,14 +239,16 @@ public static class KeyboardSimulator
         return focused;
     }
 
-    private static void SendSingleKey(ushort vk, bool keyUp)
+    private static bool SendSingleKey(ushort vk, bool keyUp)
     {
+        ushort scanCode = GetHardwareScanCode(vk);
+        bool useScanCode = scanCode != 0;
         var input = new KINPUT
         {
             type = INPUT_KEYBOARD,
-            wVk = vk,
-            wScan = 0,
-            dwFlags = keyUp ? KEYEVENTF_KEYUP : 0,
+            wVk = useScanCode ? (ushort)0 : vk,
+            wScan = scanCode,
+            dwFlags = (keyUp ? KEYEVENTF_KEYUP : 0) | (useScanCode ? KEYEVENTF_SCANCODE : 0),
             time = 0,
             dwExtraInfo = IntPtr.Zero,
         };
@@ -142,7 +259,10 @@ public static class KeyboardSimulator
         {
             int err = Marshal.GetLastWin32Error();
             Log.Log($"SendInput failed! vk=0x{vk:X2} keyUp={keyUp} error={err}");
+            return false;
         }
+
+        return true;
     }
     private static readonly LogScope Log = new("Keyboard");
 }

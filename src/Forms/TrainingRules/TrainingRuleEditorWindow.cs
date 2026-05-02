@@ -427,7 +427,7 @@ internal sealed class TrainingRuleEditorWindow : Form
 
     private static TrainingRuleCard CloneRule(TrainingRuleCard rule)
     {
-        return new TrainingRuleCard
+        var clone = new TrainingRuleCard
         {
             Id = rule.Id,
             Field = rule.Field,
@@ -437,6 +437,18 @@ internal sealed class TrainingRuleEditorWindow : Form
             Enabled = rule.Enabled,
             IsFallback = rule.IsFallback,
         };
+
+        foreach (TrainingRuleCondition condition in rule.Conditions)
+        {
+            clone.Conditions.Add(new TrainingRuleCondition
+            {
+                Field = condition.Field,
+                Operator = condition.Operator,
+                Value = condition.Value,
+            });
+        }
+
+        return clone;
     }
 
     private static TrainingLegacyStrategy CloneLegacyStrategy(TrainingLegacyStrategy source)

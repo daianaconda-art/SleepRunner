@@ -94,9 +94,10 @@ internal static class UiText
         public const string RuleId = "规则编号";
         public const string Enabled = "启用";
         public const string Condition = "条件";
+        public const string ExtraCondition = "附加条件";
         public const string Action = "动作";
         public const string Fallback = "兜底";
-        public const string EditorHint = "每张规则卡只编辑一个条件和一个动作。兜底卡会固定在最后，并且只编辑动作。";
+        public const string EditorHint = "每张规则卡最多编辑两个条件和一个动作。兜底卡会固定在最后，并且只编辑动作。";
         public const string SaveErrorTitle = "无法保存训练规则";
         public const string BuiltinDefault = "内置默认";
 

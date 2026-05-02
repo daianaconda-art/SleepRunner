@@ -40,7 +40,9 @@ public class RaceRunner : IGameTask
         Log.Log($"Race runner init: stepGate={stepGate != null}, once={exitAfterFirstHandledStep}, decisionOnly={decisionOnly}, probeMoveOnly={probeMoveOnly}, autoMode={autoMode}");
 
         RegisterHandler(new Handlers.SkipHandler());
+        RegisterHandler(new Handlers.GameFastForwardHandler());
         RegisterHandler(new Handlers.OverlayMenuHandler());
+        RegisterHandler(new Handlers.EventFastForwardSettingsHandler());
         RegisterHandler(new Handlers.MovePlatformHandler());
         RegisterHandler(new Handlers.EventHandler());
         RegisterHandler(new Handlers.CardSelectHandler());

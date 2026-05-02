@@ -2,17 +2,13 @@ using OpenCvSharp;
 
 namespace SleepRunner.Automation.Race.Handlers;
 
-/// <summary>
-/// 委托确认弹窗按钮定位器。
-/// 当前优先实现“跳过战斗”蓝色按钮的定位，返回按钮包围框与中心点。
-/// </summary>
 internal static class CommissionPopupLocator
 {
-    // 只看弹窗底部左半区域，避开中部“建议综合等级/一般”蓝条干扰
+    // Covers both the first popup's left skip button and the confirmation popup's right skip button.
     private const double SkipSearchX = 0.26;
-    private const double SkipSearchY = 0.66;
-    private const double SkipSearchW = 0.30;
-    private const double SkipSearchH = 0.16;
+    private const double SkipSearchY = 0.58;
+    private const double SkipSearchW = 0.52;
+    private const double SkipSearchH = 0.24;
 
     public static bool TryLocateSkipButton(
         Mat screenshot,
@@ -25,42 +21,76 @@ internal static class CommissionPopupLocator
         blueRatio = 0;
 
         Rect searchRect = ToPixelRect(screenshot, SkipSearchX, SkipSearchY, SkipSearchW, SkipSearchH);
-        int minX = int.MaxValue;
-        int minY = int.MaxValue;
-        int maxX = -1;
-        int maxY = -1;
-        int bluePixels = 0;
+        using var region = new Mat(screenshot, searchRect);
+        using var blueMask = new Mat(region.Rows, region.Cols, MatType.CV_8UC1, Scalar.Black);
 
-        for (int y = searchRect.Y; y < searchRect.Bottom; y++)
+        for (int y = 0; y < region.Rows; y++)
         {
-            for (int x = searchRect.X; x < searchRect.Right; x++)
+            for (int x = 0; x < region.Cols; x++)
             {
-                Vec3b bgr = screenshot.At<Vec3b>(y, x);
+                Vec3b bgr = region.At<Vec3b>(y, x);
                 int b = bgr.Item0;
                 int g = bgr.Item1;
                 int r = bgr.Item2;
                 int score = b - Math.Max(r, g);
 
-                // 实机按钮是亮蓝底，B 通道明显高于 R/G。
-                if (b <= 150 || score <= 55)
-                    continue;
-
-                bluePixels++;
-                if (x < minX) minX = x;
-                if (y < minY) minY = y;
-                if (x > maxX) maxX = x;
-                if (y > maxY) maxY = y;
+                if (b > 150 && score > 55)
+                    blueMask.Set(y, x, 255);
             }
         }
 
-        if (bluePixels == 0 || maxX <= minX || maxY <= minY)
+        Cv2.FindContours(
+            blueMask,
+            out OpenCvSharp.Point[][] contours,
+            out _,
+            RetrievalModes.External,
+            ContourApproximationModes.ApproxSimple);
+
+        Rect bestLocalRect = default;
+        int bestBluePixels = 0;
+        foreach (var contour in contours)
+        {
+            Rect localRect = Cv2.BoundingRect(contour);
+            if (!IsButtonLike(localRect, screenshot))
+                continue;
+
+            using var localMask = new Mat(blueMask, localRect);
+            int bluePixels = Cv2.CountNonZero(localMask);
+            int area = Math.Max(1, localRect.Width * localRect.Height);
+            double fillRatio = bluePixels / (double)area;
+            if (fillRatio < 0.20)
+                continue;
+
+            if (bluePixels > bestBluePixels)
+            {
+                bestBluePixels = bluePixels;
+                bestLocalRect = localRect;
+            }
+        }
+
+        if (bestBluePixels == 0)
             return false;
 
-        buttonRect = new Rect(minX, minY, maxX - minX + 1, maxY - minY + 1);
-        int area = Math.Max(1, buttonRect.Width * buttonRect.Height);
-        blueRatio = bluePixels / (double)area;
+        buttonRect = new Rect(
+            searchRect.X + bestLocalRect.X,
+            searchRect.Y + bestLocalRect.Y,
+            bestLocalRect.Width,
+            bestLocalRect.Height);
+        int buttonArea = Math.Max(1, buttonRect.Width * buttonRect.Height);
+        blueRatio = bestBluePixels / (double)buttonArea;
         buttonCenter = new OpenCvSharp.Point(buttonRect.X + buttonRect.Width / 2, buttonRect.Y + buttonRect.Height / 2);
         return true;
+    }
+
+    private static bool IsButtonLike(Rect rect, Mat screenshot)
+    {
+        double widthRatio = rect.Width / (double)screenshot.Width;
+        double heightRatio = rect.Height / (double)screenshot.Height;
+        double aspect = rect.Width / (double)Math.Max(1, rect.Height);
+
+        return widthRatio >= 0.05 &&
+               heightRatio >= 0.025 &&
+               aspect is >= 1.5 and <= 8.0;
     }
 
     private static Rect ToPixelRect(Mat screenshot, double xPct, double yPct, double wPct, double hPct)

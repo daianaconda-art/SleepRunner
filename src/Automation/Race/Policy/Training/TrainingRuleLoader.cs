@@ -83,16 +83,35 @@ public static class TrainingRuleLoader
                 var hasField = TryGetProperty(ruleElement, "field", out var fieldElement);
                 var hasOperator = TryGetProperty(ruleElement, "operator", out var operatorElement);
                 var hasValue = TryGetProperty(ruleElement, "value", out var valueElement);
+                var hasConditions = TryGetProperty(ruleElement, "conditions", out var conditionsElement);
                 var hasConditionFieldCount = (hasField ? 1 : 0) + (hasOperator ? 1 : 0) + (hasValue ? 1 : 0);
-                var isFallback = hasConditionFieldCount == 0;
+                var hasLegacyCondition = hasConditionFieldCount > 0;
 
-                if (!isFallback && hasConditionFieldCount != 3)
+                if (hasConditions && hasLegacyCondition)
+                {
+                    throw new JsonException("Training rules cannot mix 'conditions' with legacy field/operator/value properties.");
+                }
+
+                if (hasLegacyCondition && hasConditionFieldCount != 3)
                 {
                     throw new JsonException("Training rules must be either fully conditional or structurally fallback.");
                 }
 
-                string id = ResolveRuleId(ruleElement, isFallback, hasField ? fieldElement.GetString() : null,
-                    hasOperator ? operatorElement.GetString() : null, hasValue ? valueElement.GetInt32() : null, ruleIndex, usedIds);
+                List<TrainingRuleCondition> conditions = hasConditions
+                    ? ParseConditions(conditionsElement)
+                    : hasLegacyCondition
+                        ? [ParseCondition(fieldElement, operatorElement, valueElement)]
+                        : [];
+                var isFallback = conditions.Count == 0;
+
+                string id = ResolveRuleId(
+                    ruleElement,
+                    isFallback,
+                    conditions.Count > 0 ? ToToken(conditions[0].Field) : null,
+                    conditions.Count > 0 ? ToToken(conditions[0].Operator) : null,
+                    conditions.Count > 0 ? conditions[0].Value : null,
+                    ruleIndex,
+                    usedIds);
 
                 var rule = new TrainingRuleCard
                 {
@@ -106,20 +125,7 @@ public static class TrainingRuleLoader
                     hasFallbackRule = true;
                 }
 
-                if (hasField)
-                {
-                    rule.Field = ParseField(fieldElement.GetString());
-                }
-
-                if (hasOperator)
-                {
-                    rule.Operator = ParseOperator(operatorElement.GetString());
-                }
-
-                if (hasValue)
-                {
-                    rule.Value = valueElement.GetInt32();
-                }
+                ApplyConditions(rule, conditions);
 
                 if (TryGetProperty(ruleElement, "action", out var actionElement))
                 {
@@ -151,6 +157,64 @@ public static class TrainingRuleLoader
         }
 
         return profile;
+    }
+
+    private static List<TrainingRuleCondition> ParseConditions(JsonElement conditionsElement)
+    {
+        if (conditionsElement.ValueKind != JsonValueKind.Array)
+        {
+            throw new JsonException("Training rule conditions must be an array.");
+        }
+
+        var conditions = new List<TrainingRuleCondition>();
+        foreach (var conditionElement in conditionsElement.EnumerateArray())
+        {
+            if (conditionElement.ValueKind != JsonValueKind.Object)
+            {
+                throw new JsonException("Training rule conditions must be objects.");
+            }
+
+            if (!TryGetProperty(conditionElement, "field", out var fieldElement) ||
+                !TryGetProperty(conditionElement, "operator", out var operatorElement) ||
+                !TryGetProperty(conditionElement, "value", out var valueElement))
+            {
+                throw new JsonException("Training rule conditions require field, operator, and value.");
+            }
+
+            conditions.Add(ParseCondition(fieldElement, operatorElement, valueElement));
+        }
+
+        if (conditions.Count is < 1 or > 2)
+        {
+            throw new JsonException("Training rules support one or two conditions.");
+        }
+
+        return conditions;
+    }
+
+    private static TrainingRuleCondition ParseCondition(JsonElement fieldElement, JsonElement operatorElement, JsonElement valueElement)
+    {
+        return new TrainingRuleCondition
+        {
+            Field = ParseField(fieldElement.GetString()),
+            Operator = ParseOperator(operatorElement.GetString()),
+            Value = valueElement.GetInt32(),
+        };
+    }
+
+    private static void ApplyConditions(TrainingRuleCard rule, IReadOnlyList<TrainingRuleCondition> conditions)
+    {
+        rule.Conditions.Clear();
+
+        foreach (TrainingRuleCondition condition in conditions)
+        {
+            rule.Conditions.Add(CloneCondition(condition));
+        }
+
+        TrainingRuleCondition? first = conditions.FirstOrDefault();
+        rule.Field = first?.Field;
+        rule.Operator = first?.Operator;
+        rule.Value = first?.Value;
     }
 
     private static TrainingRuleField ParseField(string? token) => token?.ToLowerInvariant() switch
@@ -361,9 +425,10 @@ public static class TrainingRuleLoader
 
     private static void ValidateNormalRule(TrainingRuleCard rule)
     {
-        if (rule.Field is null || rule.Operator is null || rule.Value is null)
+        IReadOnlyList<TrainingRuleCondition> conditions = GetConditions(rule);
+        if (conditions.Count is < 1 or > 2)
         {
-            throw new InvalidOperationException("Training rules must be either fully conditional or structurally fallback.");
+            throw new InvalidOperationException("Training rules must have one or two conditions.");
         }
     }
 
@@ -378,14 +443,69 @@ public static class TrainingRuleLoader
 
         if (!rule.IsFallback)
         {
-            writer.WriteString("field", ToToken(rule.Field!.Value));
-            writer.WriteString("operator", ToToken(rule.Operator!.Value));
-            writer.WriteNumber("value", rule.Value!.Value);
+            IReadOnlyList<TrainingRuleCondition> conditions = GetConditions(rule);
+            if (conditions.Count == 1)
+            {
+                WriteLegacyCondition(writer, conditions[0]);
+            }
+            else
+            {
+                writer.WritePropertyName("conditions");
+                writer.WriteStartArray();
+                foreach (TrainingRuleCondition condition in conditions)
+                {
+                    writer.WriteStartObject();
+                    WriteLegacyCondition(writer, condition);
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+            }
         }
 
         writer.WriteString("action", ToToken(rule.Action));
         writer.WriteBoolean("enabled", rule.Enabled);
         writer.WriteEndObject();
+    }
+
+    private static IReadOnlyList<TrainingRuleCondition> GetConditions(TrainingRuleCard rule)
+    {
+        if (rule.Conditions.Count > 0)
+        {
+            return rule.Conditions;
+        }
+
+        if (rule.Field is null || rule.Operator is null || rule.Value is null)
+        {
+            return [];
+        }
+
+        return
+        [
+            new TrainingRuleCondition
+            {
+                Field = rule.Field.Value,
+                Operator = rule.Operator.Value,
+                Value = rule.Value.Value,
+            },
+        ];
+    }
+
+    private static TrainingRuleCondition CloneCondition(TrainingRuleCondition condition)
+    {
+        return new TrainingRuleCondition
+        {
+            Field = condition.Field,
+            Operator = condition.Operator,
+            Value = condition.Value,
+        };
+    }
+
+    private static void WriteLegacyCondition(Utf8JsonWriter writer, TrainingRuleCondition condition)
+    {
+        writer.WriteString("field", ToToken(condition.Field));
+        writer.WriteString("operator", ToToken(condition.Operator));
+        writer.WriteNumber("value", condition.Value);
     }
 
     private static void WriteLegacyStrategy(Utf8JsonWriter writer, TrainingLegacyStrategy strategy)

@@ -123,9 +123,10 @@ public class UiLocalizationTests
                 "SleepRunner.Forms.TrainingRules.TrainingRuleCardControl",
                 rule);
             IReadOnlyList<string> cardTexts = WinFormsTestHost.CollectTexts(card);
-            Assert.Contains("规则编号", cardTexts);
+            Assert.DoesNotContain("规则编号", cardTexts);
             Assert.Contains("启用", cardTexts);
             Assert.Contains("条件", cardTexts);
+            Assert.Contains("附加条件", cardTexts);
             Assert.Contains("动作", cardTexts);
             Assert.Contains("上移", cardTexts);
             Assert.Contains("下移", cardTexts);
@@ -155,7 +156,7 @@ public class UiLocalizationTests
                 profile);
             IReadOnlyList<string> editorTexts = WinFormsTestHost.CollectTexts(editor);
             Assert.Contains("配置：default", editorTexts);
-            Assert.Contains("每张规则卡只编辑一个条件和一个动作。兜底卡会固定在最后，并且只编辑动作。", editorTexts);
+            Assert.Contains("每张规则卡最多编辑两个条件和一个动作。兜底卡会固定在最后，并且只编辑动作。", editorTexts);
             Assert.Contains("新增规则", editorTexts);
             Assert.Contains("保存", editorTexts);
             Assert.Contains("取消", editorTexts);

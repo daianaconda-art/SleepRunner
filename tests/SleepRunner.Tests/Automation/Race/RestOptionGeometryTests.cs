@@ -6,11 +6,11 @@ namespace SleepRunner.Tests.Automation.Race;
 public class RestOptionGeometryTests
 {
     [Fact]
-    public void ConfirmRestButtonY_targets_lower_rest_button_center()
+    public void ConfirmRestButtonY_matches_bottom_action_button_center()
     {
         double y = GetPrivateDoubleConstant("ConfirmRestBtnY");
 
-        Assert.InRange(y, 0.915d, 0.935d);
+        Assert.Equal(0.890d, y, 3);
     }
 
     [Fact]

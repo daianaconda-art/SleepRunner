@@ -186,4 +186,52 @@ public class TrainingRuleLoaderRoundTripTests
         using var document = JsonDocument.Parse(json);
         Assert.False(document.RootElement.TryGetProperty("legacy_strategy", out _));
     }
+
+    [Fact]
+    public void SaveToJson_preserves_two_condition_rules_loaded_from_json()
+    {
+        var sourceJson = """
+        {
+          "rules": [
+            {
+              "id": "safe_strength",
+              "conditions": [
+                {
+                  "field": "strength_icons",
+                  "operator": ">=",
+                  "value": 3
+                },
+                {
+                  "field": "strength_fail_rate",
+                  "operator": "<",
+                  "value": 40
+                }
+              ],
+              "action": "train_strength",
+              "enabled": true
+            },
+            {
+              "id": "fallback_rest",
+              "action": "rest",
+              "enabled": true
+            }
+          ]
+        }
+        """;
+
+        TrainingRuleProfile profile = TrainingRuleLoader.LoadFromJson(sourceJson, "two-conditions.json");
+
+        string savedJson = TrainingRuleLoader.SaveToJson(profile);
+
+        using var document = JsonDocument.Parse(savedJson);
+        JsonElement savedRule = document.RootElement.GetProperty("rules")[0];
+        JsonElement conditions = savedRule.GetProperty("conditions");
+        Assert.Equal(2, conditions.GetArrayLength());
+        Assert.Equal("strength_icons", conditions[0].GetProperty("field").GetString());
+        Assert.Equal(">=", conditions[0].GetProperty("operator").GetString());
+        Assert.Equal(3, conditions[0].GetProperty("value").GetInt32());
+        Assert.Equal("strength_fail_rate", conditions[1].GetProperty("field").GetString());
+        Assert.Equal("<", conditions[1].GetProperty("operator").GetString());
+        Assert.Equal(40, conditions[1].GetProperty("value").GetInt32());
+    }
 }

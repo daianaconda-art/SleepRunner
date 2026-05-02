@@ -1,4 +1,5 @@
 using OpenCvSharp;
+using SleepRunner.Input;
 using SleepRunner.Recognition;
 using SleepRunner.Utils;
 
@@ -147,6 +148,35 @@ internal static class TradeBuyActions
             }
         }
 
+        GameActionKey slotAction = TradeHotkeyProbe.GetSelectSlotAction(slotIndex);
+        bool hotkeySent = await ctx.SendGameAction(slotAction);
+        if (hotkeySent)
+        {
+            await ctx.Wait(430);
+            var hotkeyShot = ctx.CaptureScreen();
+            if (hotkeyShot == null || hotkeyShot.Empty())
+            {
+                hotkeyShot?.Dispose();
+            }
+            else if (IsOfferDetailReady(hotkeyShot) &&
+                     IsCurrentDetailOwnedBySlot(hotkeyShot, slotIndex))
+            {
+                Logger.Log($"[Race:Trade] Trade detail opened by hotkey {slotAction}.");
+                var clone = hotkeyShot.Clone();
+                hotkeyShot.Dispose();
+                return clone;
+            }
+            else
+            {
+                Logger.Log($"[Race:Trade] Trade detail hotkey {slotAction} did not select slot {slotIndex + 1}, falling back to row click.");
+                hotkeyShot.Dispose();
+            }
+        }
+        else
+        {
+            Logger.Log($"[Race:Trade] Trade detail hotkey {slotAction} failed, falling back to row click.");
+        }
+
         await ctx.ClickAtPercent(slot.ClickX, slot.ClickY);
         await ctx.Wait(430);
 
@@ -193,29 +223,40 @@ internal static class TradeBuyActions
                 return false;
             }
 
-            foreach (var r in TradeDetailOcr.BuyButtonRegions)
+            bool keySent = await ctx.SendGameAction(GameActionKey.TradePurchase);
+            if (keySent)
             {
-                string raw = OcrHelper.RecognizeRegion(shot, r.X, r.Y, r.W, r.H).GetAwaiter().GetResult();
-                string text = TradeStageOcr.NormalizeOcr(raw);
-                if (!text.Contains("购买", StringComparison.Ordinal) &&
-                    !text.Contains("买", StringComparison.Ordinal) &&
-                    !text.Contains("购", StringComparison.Ordinal))
-                    continue;
-
-                double clickX = r.X + r.W / 2;
-                double clickY = r.Y + r.H / 2;
-                await ctx.ClickAtPercent(clickX, clickY);
                 await ctx.Wait(450);
                 bool accepted = await VerifyBuyClickAcceptedAsync(ctx, target, knownBudget);
-                Logger.Log($"[Race:Trade] Trade executor: buy clicked at ({clickX:F3},{clickY:F3}), attempt={attempt}, text='{text}', accepted={accepted}");
-                return accepted;
+                Logger.Log($"[Race:Trade] Trade executor: buy key action sent, attempt={attempt}, accepted={accepted}");
+                if (accepted)
+                    return true;
+            }
+            else
+            {
+                Logger.Log($"[Race:Trade] Trade executor: buy key action failed, attempt={attempt}, falling back to fixed click points.");
             }
 
-            Logger.Log($"[Race:Trade] Trade executor: buy text not found on enabled button, skip blind fallback (attempt={attempt}).");
+            foreach (var point in GetBuyFallbackClickPoints())
+            {
+                await ctx.ClickAtPercent(point.X, point.Y);
+                await ctx.Wait(450);
+                bool accepted = await VerifyBuyClickAcceptedAsync(ctx, target, knownBudget);
+                Logger.Log($"[Race:Trade] Trade executor: buy fixed fallback clicked at ({point.X:F3},{point.Y:F3}), attempt={attempt}, accepted={accepted}");
+                if (accepted)
+                    return true;
+            }
+
+            Logger.Log($"[Race:Trade] Trade executor: fixed buy fallback exhausted (attempt={attempt}).");
             return false;
         }
 
         return false;
+    }
+
+    internal static IReadOnlyList<(double X, double Y)> GetBuyFallbackClickPoints()
+    {
+        return TradeDetailOcr.BuyButtonClickPoints;
     }
 
     /// <summary>

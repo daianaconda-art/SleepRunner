@@ -160,6 +160,16 @@ public class GameContext : IDisposable
         Log.Log($"SendHotkey: completed in {sw.ElapsedMilliseconds}ms");
     }
 
+    public async Task<bool> SendGameAction(GameActionKey action)
+    {
+        var sw = Stopwatch.StartNew();
+        Log.Log($"SendGameAction: action={action}");
+        bool sent = await GameKeyboard.Default.SendActionAsync(_hWnd, action, _token);
+        sw.Stop();
+        Log.Log($"SendGameAction: action={action}, sent={sent}, completed in {sw.ElapsedMilliseconds}ms");
+        return sent;
+    }
+
     /// <summary>
     /// 检查是否已请求取消，供外部 Handler 调用
     /// </summary>

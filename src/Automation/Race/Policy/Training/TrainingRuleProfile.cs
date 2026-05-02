@@ -38,9 +38,20 @@ public enum TrainingDecisionAction
     BuiltinDefault,
 }
 
+public sealed class TrainingRuleCondition
+{
+    public TrainingRuleField Field { get; set; }
+
+    public TrainingRuleOperator Operator { get; set; }
+
+    public int Value { get; set; }
+}
+
 public sealed class TrainingRuleCard
 {
     public string Id { get; set; } = string.Empty;
+
+    public List<TrainingRuleCondition> Conditions { get; } = new();
 
     public TrainingRuleField? Field { get; set; }
 

@@ -11,12 +11,15 @@ public class CardSelectHandler : IRaceHandler
 {
     private const double SelectDoneClickX = 0.47;
     private const double SelectDoneClickY = 0.83;
-    private const double TitleRegionX = 0.02;
-    private const double TitleRegionY = 0.02;
-    private const double TitleRegionW = 0.28;
-    private const double TitleRegionH = 0.10;
     private const int CardSelectionSettleMs = 800;
     private const int SelectDonePollDelayMs = 180;
+
+    private static readonly (double X, double Y, double W, double H)[] TitleRegions =
+    [
+        (0.02, 0.02, 0.28, 0.10),
+        (0.01, 0.07, 0.22, 0.12),
+        (0.00, 0.04, 0.26, 0.16),
+    ];
 
     private static readonly (double X, double Y, double W, double H)[] CardTextRegions =
     [
@@ -43,13 +46,22 @@ public class CardSelectHandler : IRaceHandler
 
     public int Priority => 10;
 
+    private readonly Func<Mat, double, double, double, double, string> _readRegion;
+
+    public CardSelectHandler()
+        : this(ReadRegionText)
+    {
+    }
+
+    public CardSelectHandler(Func<Mat, double, double, double, double, string> readRegion)
+    {
+        _readRegion = readRegion ?? throw new ArgumentNullException(nameof(readRegion));
+    }
+
     public bool CanHandle(FrameContext frame)
     {
         var screenshot = frame.Screenshot;
-        string titleRaw = OcrHelper.RecognizeRegion(screenshot, TitleRegionX, TitleRegionY, TitleRegionW, TitleRegionH)
-            .GetAwaiter()
-            .GetResult();
-        string title = NormalizeOcr(titleRaw);
+        string title = ReadCardSelectTitle(screenshot);
         if (IsCardSelectTitle(title))
         {
             Log.Log($"CanHandle: OCR title matched card select ('{title}')");
@@ -62,17 +74,12 @@ public class CardSelectHandler : IRaceHandler
     public string DescribeDecision(FrameContext frame)
     {
         var screenshot = frame.Screenshot;
-        string titleRaw = OcrHelper.RecognizeRegion(screenshot, TitleRegionX, TitleRegionY, TitleRegionW, TitleRegionH)
-            .GetAwaiter()
-            .GetResult();
-        string title = NormalizeOcr(titleRaw);
+        string title = ReadCardSelectTitle(screenshot);
         var texts = new string[3];
         for (int i = 0; i < texts.Length; i++)
         {
             var region = CardTextRegions[i];
-            string raw = OcrHelper.RecognizeRegion(screenshot, region.X, region.Y, region.W, region.H)
-                .GetAwaiter()
-                .GetResult();
+            string raw = _readRegion(screenshot, region.X, region.Y, region.W, region.H);
             texts[i] = NormalizeOcr(raw);
         }
 
@@ -112,14 +119,13 @@ public class CardSelectHandler : IRaceHandler
 
     private async Task<CardSelectHandleResult> HandleByProfileAsync(GameContext ctx, Mat shot)
     {
-        string titleRaw = await OcrHelper.RecognizeRegion(shot, TitleRegionX, TitleRegionY, TitleRegionW, TitleRegionH);
-        string title = NormalizeOcr(titleRaw);
+        string title = ReadCardSelectTitle(shot);
 
         var texts = new string[3];
         for (int i = 0; i < texts.Length; i++)
         {
             var region = CardTextRegions[i];
-            string raw = await OcrHelper.RecognizeRegion(shot, region.X, region.Y, region.W, region.H);
+            string raw = _readRegion(shot, region.X, region.Y, region.W, region.H);
             texts[i] = NormalizeOcr(raw);
             Log.Log($"Card[{i + 1}] OCR: '{texts[i]}'");
             if (CardSelectPlanner.IsQuantityCappedCard(texts[i]))
@@ -307,9 +313,7 @@ public class CardSelectHandler : IRaceHandler
         for (int i = 0; i < RecommendBadgeRegions.Length; i++)
         {
             var r = RecommendBadgeRegions[i];
-            string raw = OcrHelper.RecognizeRegion(shot, r.X, r.Y, r.W, r.H)
-                .GetAwaiter()
-                .GetResult();
+            string raw = _readRegion(shot, r.X, r.Y, r.W, r.H);
             string text = NormalizeOcr(raw);
             Log.Log($"Default policy: recommend OCR slot {i + 1}: '{text}'");
             if (text.Contains("推荐", StringComparison.Ordinal) ||
@@ -439,6 +443,25 @@ public class CardSelectHandler : IRaceHandler
         return normalized.Trim();
     }
 
+    private string ReadCardSelectTitle(Mat screenshot)
+    {
+        string firstNonEmpty = "";
+        foreach (var region in TitleRegions)
+        {
+            string title = NormalizeOcr(_readRegion(screenshot, region.X, region.Y, region.W, region.H));
+            if (string.IsNullOrEmpty(title))
+                continue;
+
+            if (IsCardSelectTitle(title))
+                return title;
+
+            if (string.IsNullOrEmpty(firstNonEmpty))
+                firstNonEmpty = title;
+        }
+
+        return firstNonEmpty;
+    }
+
     private static bool IsCardSelectTitle(string title)
     {
         if (string.IsNullOrEmpty(title))
@@ -447,6 +470,13 @@ public class CardSelectHandler : IRaceHandler
         return title.Contains("选择奖励", StringComparison.Ordinal) ||
                title.Contains("奖励选择", StringComparison.Ordinal) ||
                title.Contains("选择", StringComparison.Ordinal) && title.Contains("奖励", StringComparison.Ordinal);
+    }
+
+    private static string ReadRegionText(Mat screenshot, double x, double y, double w, double h)
+    {
+        return OcrHelper.RecognizeRegion(screenshot, x, y, w, h)
+            .GetAwaiter()
+            .GetResult();
     }
 
     private enum CardPolicyType

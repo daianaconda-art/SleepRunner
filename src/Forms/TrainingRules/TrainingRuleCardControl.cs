@@ -14,18 +14,21 @@ internal sealed class TrainingRuleCardControl : UserControl
     private const int ButtonGap = 6;
     private const int LabelWidth = 84;
 
-    private readonly Label _lblId;
-    private readonly TextBox _txtId;
     private readonly CheckBox _chkEnabled;
     private readonly Label _lblCondition;
     private readonly ComboBox _cmbField;
     private readonly ComboBox _cmbOperator;
     private readonly NumericUpDown _numValue;
+    private readonly CheckBox _chkSecondCondition;
+    private readonly ComboBox _cmbSecondField;
+    private readonly ComboBox _cmbSecondOperator;
+    private readonly NumericUpDown _numSecondValue;
     private readonly Label _lblAction;
     private readonly ComboBox _cmbAction;
     private readonly RoundedButton _btnUp;
     private readonly RoundedButton _btnDown;
     private readonly RoundedButton _btnDelete;
+    private string _ruleId = string.Empty;
 
     public event Action<TrainingRuleCardControl>? MoveUpRequested;
     public event Action<TrainingRuleCardControl>? MoveDownRequested;
@@ -36,15 +39,6 @@ internal sealed class TrainingRuleCardControl : UserControl
         DoubleBuffered = true;
         BackColor = Color.Transparent;
         Margin = new Padding(0, 0, 0, 10);
-
-        _lblId = CreateLabel(UiText.Training.RuleId);
-        _txtId = new TextBox
-        {
-            BorderStyle = BorderStyle.FixedSingle,
-            Font = RaceTheme.BodyFont(),
-            BackColor = RaceTheme.SurfaceSunken,
-            ForeColor = RaceTheme.TextPrimary,
-        };
 
         _chkEnabled = new CheckBox
         {
@@ -70,6 +64,30 @@ internal sealed class TrainingRuleCardControl : UserControl
             Maximum = 9999,
         };
 
+        _chkSecondCondition = new CheckBox
+        {
+            Text = UiText.Training.ExtraCondition,
+            AutoSize = false,
+            Font = RaceTheme.SmallFont(),
+            ForeColor = RaceTheme.TextSecondary,
+            BackColor = Color.Transparent,
+            CheckAlign = ContentAlignment.MiddleRight,
+            TextAlign = ContentAlignment.MiddleLeft,
+        };
+        _chkSecondCondition.CheckedChanged += (_, _) => UpdateSecondConditionState();
+
+        _cmbSecondField = CreateComboBox();
+        _cmbSecondOperator = CreateComboBox();
+        _numSecondValue = new NumericUpDown
+        {
+            BorderStyle = BorderStyle.FixedSingle,
+            Font = RaceTheme.BodyFont(),
+            BackColor = RaceTheme.SurfaceSunken,
+            ForeColor = RaceTheme.TextPrimary,
+            Minimum = -9999,
+            Maximum = 9999,
+        };
+
         _lblAction = CreateLabel(rule.IsFallback ? UiText.Training.Fallback : UiText.Training.Action);
         _cmbAction = CreateComboBox();
 
@@ -80,13 +98,15 @@ internal sealed class TrainingRuleCardControl : UserControl
 
         Controls.AddRange(
         [
-            _lblId,
-            _txtId,
             _chkEnabled,
             _lblCondition,
             _cmbField,
             _cmbOperator,
             _numValue,
+            _chkSecondCondition,
+            _cmbSecondField,
+            _cmbSecondOperator,
+            _numSecondValue,
             _lblAction,
             _cmbAction,
             _btnUp,
@@ -94,8 +114,10 @@ internal sealed class TrainingRuleCardControl : UserControl
             _btnDelete,
         ]);
 
-        PopulateFieldOptions();
-        PopulateOperatorOptions();
+        PopulateFieldOptions(_cmbField);
+        PopulateFieldOptions(_cmbSecondField);
+        PopulateOperatorOptions(_cmbOperator);
+        PopulateOperatorOptions(_cmbSecondOperator);
         PopulateActionOptions();
         ApplyRule(rule);
     }
@@ -121,7 +143,7 @@ internal sealed class TrainingRuleCardControl : UserControl
 
     public TrainingRuleCard ToRuleCard()
     {
-        string id = _txtId.Text.Trim();
+        string id = _ruleId.Trim();
         if (IsFallback)
         {
             return new TrainingRuleCard
@@ -133,16 +155,25 @@ internal sealed class TrainingRuleCardControl : UserControl
             };
         }
 
-        return new TrainingRuleCard
+        var card = new TrainingRuleCard
         {
             Id = id,
-            Field = GetSelectedValue<TrainingRuleField>(_cmbField),
-            Operator = GetSelectedValue<TrainingRuleOperator>(_cmbOperator),
-            Value = Decimal.ToInt32(_numValue.Value),
             Action = GetSelectedValue<TrainingDecisionAction>(_cmbAction),
             Enabled = _chkEnabled.Checked,
             IsFallback = false,
         };
+
+        AddCondition(card, _cmbField, _cmbOperator, _numValue);
+        if (_chkSecondCondition.Checked)
+        {
+            AddCondition(card, _cmbSecondField, _cmbSecondOperator, _numSecondValue);
+        }
+
+        TrainingRuleCondition first = card.Conditions[0];
+        card.Field = first.Field;
+        card.Operator = first.Operator;
+        card.Value = first.Value;
+        return card;
     }
 
     protected override void OnSizeChanged(EventArgs e)
@@ -166,30 +197,48 @@ internal sealed class TrainingRuleCardControl : UserControl
     private void ApplyRule(TrainingRuleCard rule)
     {
         IsFallback = rule.IsFallback;
-        Height = IsFallback ? 104 : 142;
+        Height = IsFallback ? 104 : 180;
 
-        _txtId.Text = rule.Id;
+        _ruleId = rule.Id;
         _chkEnabled.Checked = rule.Enabled;
 
-        if (rule.Field is not null)
+        IReadOnlyList<TrainingRuleCondition> conditions = GetConditions(rule);
+        if (conditions.Count > 0)
         {
-            SetSelectedValue(_cmbField, rule.Field.Value, "field");
+            ApplyCondition(conditions[0], _cmbField, _cmbOperator, _numValue, "field");
         }
 
-        if (rule.Operator is not null)
+        if (conditions.Count > 1)
         {
-            SetSelectedValue(_cmbOperator, rule.Operator.Value, "operator");
+            _chkSecondCondition.Checked = true;
+            ApplyCondition(conditions[1], _cmbSecondField, _cmbSecondOperator, _numSecondValue, "second field");
+        }
+        else
+        {
+            _chkSecondCondition.Checked = false;
+            ApplyCondition(
+                new TrainingRuleCondition
+                {
+                    Field = TrainingRuleField.StrengthFailRate,
+                    Operator = TrainingRuleOperator.LessThan,
+                    Value = 40,
+                },
+                _cmbSecondField,
+                _cmbSecondOperator,
+                _numSecondValue,
+                "second field");
         }
 
-        _numValue.Value = Math.Clamp(rule.Value ?? 0, Decimal.ToInt32(_numValue.Minimum), Decimal.ToInt32(_numValue.Maximum));
         SetSelectedValue(_cmbAction, rule.Action, "action");
 
         _lblCondition.Visible = !IsFallback;
         _cmbField.Visible = !IsFallback;
         _cmbOperator.Visible = !IsFallback;
         _numValue.Visible = !IsFallback;
+        _chkSecondCondition.Visible = !IsFallback;
         _lblAction.Text = IsFallback ? UiText.Training.Fallback : UiText.Training.Action;
         _btnDelete.Visible = !IsFallback;
+        UpdateSecondConditionState();
         LayoutControls();
     }
 
@@ -201,20 +250,14 @@ internal sealed class TrainingRuleCardControl : UserControl
         }
 
         int rightButtonsWidth = ButtonWidth * 3 + ButtonGap * 2;
-        int contentWidth = Math.Max(200, Width - Pad * 2);
-        int idLeft = Pad + LabelWidth + ButtonGap;
-        int idWidth = Math.Max(140, contentWidth - LabelWidth - rightButtonsWidth - 86);
-
-        _lblId.SetBounds(Pad, Pad, LabelWidth, RowHeight);
-        _txtId.SetBounds(idLeft, Pad, idWidth, RowHeight);
-        _chkEnabled.SetBounds(_txtId.Right + ButtonGap, Pad, 86, RowHeight);
+        _chkEnabled.SetBounds(Pad, Pad, 86, RowHeight);
 
         int buttonLeft = Width - Pad - rightButtonsWidth;
         _btnUp.SetBounds(buttonLeft, Pad, ButtonWidth, RowHeight);
         _btnDown.SetBounds(_btnUp.Right + ButtonGap, Pad, ButtonWidth, RowHeight);
         _btnDelete.SetBounds(_btnDown.Right + ButtonGap, Pad, ButtonWidth, RowHeight);
 
-        int actionRowY = IsFallback ? Pad + RowHeight + 12 : Pad + (RowHeight + 8) * 2;
+        int actionRowY = IsFallback ? Pad + RowHeight + 12 : Pad + (RowHeight + 8) * 3;
         int actionLeft = Pad + LabelWidth + ButtonGap;
         int actionWidth = Math.Max(140, Width - actionLeft - Pad);
 
@@ -228,15 +271,78 @@ internal sealed class TrainingRuleCardControl : UserControl
             _cmbField.SetBounds(conditionLeft, conditionRowY, fieldWidth, RowHeight);
             _cmbOperator.SetBounds(_cmbField.Right + ButtonGap, conditionRowY, 80, RowHeight);
             _numValue.SetBounds(_cmbOperator.Right + ButtonGap, conditionRowY, 86, RowHeight);
+
+            int secondConditionRowY = conditionRowY + RowHeight + 8;
+            _chkSecondCondition.SetBounds(Pad, secondConditionRowY, LabelWidth, RowHeight);
+            _cmbSecondField.SetBounds(conditionLeft, secondConditionRowY, fieldWidth, RowHeight);
+            _cmbSecondOperator.SetBounds(_cmbSecondField.Right + ButtonGap, secondConditionRowY, 80, RowHeight);
+            _numSecondValue.SetBounds(_cmbSecondOperator.Right + ButtonGap, secondConditionRowY, 86, RowHeight);
         }
 
         _lblAction.SetBounds(Pad, actionRowY, LabelWidth, RowHeight);
         _cmbAction.SetBounds(actionLeft, actionRowY, actionWidth, RowHeight);
     }
 
-    private void PopulateFieldOptions()
+    private static void AddCondition(
+        TrainingRuleCard card,
+        ComboBox fieldCombo,
+        ComboBox operatorCombo,
+        NumericUpDown valueInput)
     {
-        _cmbField.Items.AddRange(
+        card.Conditions.Add(new TrainingRuleCondition
+        {
+            Field = GetSelectedValue<TrainingRuleField>(fieldCombo),
+            Operator = GetSelectedValue<TrainingRuleOperator>(operatorCombo),
+            Value = Decimal.ToInt32(valueInput.Value),
+        });
+    }
+
+    private static void ApplyCondition(
+        TrainingRuleCondition condition,
+        ComboBox fieldCombo,
+        ComboBox operatorCombo,
+        NumericUpDown valueInput,
+        string optionName)
+    {
+        SetSelectedValue(fieldCombo, condition.Field, optionName);
+        SetSelectedValue(operatorCombo, condition.Operator, "operator");
+        valueInput.Value = Math.Clamp(condition.Value, Decimal.ToInt32(valueInput.Minimum), Decimal.ToInt32(valueInput.Maximum));
+    }
+
+    private static IReadOnlyList<TrainingRuleCondition> GetConditions(TrainingRuleCard rule)
+    {
+        if (rule.Conditions.Count > 0)
+        {
+            return rule.Conditions;
+        }
+
+        if (rule.Field is null || rule.Operator is null || !rule.Value.HasValue)
+        {
+            return [];
+        }
+
+        return
+        [
+            new TrainingRuleCondition
+            {
+                Field = rule.Field.Value,
+                Operator = rule.Operator.Value,
+                Value = rule.Value.Value,
+            },
+        ];
+    }
+
+    private void UpdateSecondConditionState()
+    {
+        bool visible = !IsFallback && _chkSecondCondition.Checked;
+        _cmbSecondField.Visible = visible;
+        _cmbSecondOperator.Visible = visible;
+        _numSecondValue.Visible = visible;
+    }
+
+    private static void PopulateFieldOptions(ComboBox combo)
+    {
+        combo.Items.AddRange(
         [
             new OptionItem<TrainingRuleField>(TrainingRuleField.StrengthIcons, UiText.Training.FieldLabel(TrainingRuleField.StrengthIcons)),
             new OptionItem<TrainingRuleField>(TrainingRuleField.StaminaIcons, UiText.Training.FieldLabel(TrainingRuleField.StaminaIcons)),
@@ -254,9 +360,9 @@ internal sealed class TrainingRuleCardControl : UserControl
         ]);
     }
 
-    private void PopulateOperatorOptions()
+    private static void PopulateOperatorOptions(ComboBox combo)
     {
-        _cmbOperator.Items.AddRange(
+        combo.Items.AddRange(
         [
             new OptionItem<TrainingRuleOperator>(TrainingRuleOperator.GreaterThan, ">"),
             new OptionItem<TrainingRuleOperator>(TrainingRuleOperator.GreaterThanOrEqual, ">="),
@@ -289,7 +395,7 @@ internal sealed class TrainingRuleCardControl : UserControl
         TextAlign = ContentAlignment.MiddleLeft,
     };
 
-    private static ComboBox CreateComboBox() => new()
+    private static ComboBox CreateComboBox() => new WheelSafeComboBox()
     {
         DropDownStyle = ComboBoxStyle.DropDownList,
         FlatStyle = FlatStyle.Flat,
@@ -346,5 +452,29 @@ internal sealed class TrainingRuleCardControl : UserControl
         public string Text { get; } = text;
 
         public override string ToString() => Text;
+    }
+
+    private sealed class WheelSafeComboBox : ComboBox
+    {
+        private const int WmMouseWheel = 0x020A;
+        private const int WmMouseHWheel = 0x020E;
+
+        protected override void OnMouseWheel(MouseEventArgs e)
+        {
+            if (e is HandledMouseEventArgs handled)
+            {
+                handled.Handled = true;
+            }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg is WmMouseWheel or WmMouseHWheel)
+            {
+                return;
+            }
+
+            base.WndProc(ref m);
+        }
     }
 }

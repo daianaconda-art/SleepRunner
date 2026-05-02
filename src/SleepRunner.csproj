@@ -6,12 +6,20 @@
     <Platforms>x64</Platforms>
     <AssemblyName>SleepRunner</AssemblyName>
     <Product>SleepRunner</Product>
+    <ApplicationIcon>Resources\SleepRunner.ico</ApplicationIcon>
     <RootNamespace>SleepRunner</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Resources\SleepRunner.ico" />
+    <None Remove="Resources\SleepRunnerRunning.ico" />
+    <EmbeddedResource Include="Resources\SleepRunner.ico" LogicalName="SleepRunner.AppIcon.ico" />
+    <EmbeddedResource Include="Resources\SleepRunnerRunning.ico" LogicalName="SleepRunner.RunningAppIcon.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260330" />

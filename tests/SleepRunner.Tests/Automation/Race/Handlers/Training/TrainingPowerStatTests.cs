@@ -26,6 +26,16 @@ public class TrainingPowerStatTests
     }
 
     [Fact]
+    public void Focused_power_stat_rejects_bare_max_denominator_text()
+    {
+        bool parsed = InvokeTryParseStatValueFocused("/1250", "\u529b\u91cf", out int value, out string reason);
+
+        Assert.False(parsed);
+        Assert.Equal(-1, value);
+        Assert.Equal("max-denominator-only", reason);
+    }
+
+    [Fact]
     public void Focused_stamina_stat_accepts_single_digit_current_over_max_text()
     {
         bool parsed = InvokeTryParseStatValueFocused("\u4f53\u529b9/1250", "\u4f53\u529b", out int value, out string reason);

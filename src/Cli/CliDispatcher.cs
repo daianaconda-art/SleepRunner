@@ -86,6 +86,7 @@ public sealed class CliDispatcher
         d.Register(new Commands.ProbePowerCommand());
         d.Register(new Commands.DebugTradeCommand());
         d.Register(new Commands.DebugTradeFlowCommand());
+        d.Register(new Commands.DebugTradeHotkeysCommand());
         d.Register(new Commands.LocateCommissionSkipCommand());
         // 跑马 CLI 共用一个实现，按名称区分模式
         var raceRun = new Commands.RaceRunCommand("--race");

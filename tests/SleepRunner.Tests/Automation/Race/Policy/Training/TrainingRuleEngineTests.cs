@@ -279,6 +279,101 @@ public class TrainingRuleEngineTests
     }
 
     [Fact]
+    public void Evaluate_requires_every_condition_in_a_two_condition_rule_to_match()
+    {
+        var profile = TrainingRuleLoader.LoadFromJson("""
+        {
+          "rules": [
+            {
+              "id": "safe_strength",
+              "conditions": [
+                {
+                  "field": "strength_icons",
+                  "operator": ">=",
+                  "value": 3
+                },
+                {
+                  "field": "strength_fail_rate",
+                  "operator": "<",
+                  "value": 40
+                }
+              ],
+              "action": "train_strength",
+              "enabled": true
+            },
+            {
+              "id": "fallback_rest",
+              "action": "rest",
+              "enabled": true
+            }
+          ]
+        }
+        """, "two-conditions.json");
+
+        var context = new TrainingDecisionContext
+        {
+            ProfileName = "two-conditions.json",
+            IconCounts = [4, 0, 0, 0, 0],
+            FailRates = [45, 0, 0, 0, 0],
+            StrengthStat = 300,
+            StaminaStat = 200,
+        };
+
+        var result = TrainingRuleEngine.Evaluate(context, profile);
+
+        Assert.Equal("fallback_rest", result.MatchedRuleId);
+        Assert.Equal(TrainingDecisionAction.Rest, result.Action);
+    }
+
+    [Fact]
+    public void Probe_requests_the_second_condition_field_after_the_first_condition_matches()
+    {
+        var profile = TrainingRuleLoader.LoadFromJson("""
+        {
+          "rules": [
+            {
+              "id": "safe_strength",
+              "conditions": [
+                {
+                  "field": "strength_icons",
+                  "operator": ">=",
+                  "value": 3
+                },
+                {
+                  "field": "strength_fail_rate",
+                  "operator": "<",
+                  "value": 40
+                }
+              ],
+              "action": "train_strength",
+              "enabled": true
+            },
+            {
+              "id": "fallback_rest",
+              "action": "rest",
+              "enabled": true
+            }
+          ]
+        }
+        """, "two-conditions.json");
+
+        var context = new TrainingDecisionContext
+        {
+            ProfileName = "two-conditions.json",
+            IconCounts = [4, 0, 0, 0, 0],
+            KnownIconMask = 0b00001,
+            FailRates = [0, 0, 0, 0, 0],
+            KnownFailRateMask = 0,
+            StrengthStat = 300,
+        };
+
+        var probe = TrainingRuleEngine.Probe(context, profile);
+
+        Assert.Null(probe.Decision);
+        Assert.Equal(TrainingRuleField.StrengthFailRate, probe.MissingField);
+    }
+
+    [Fact]
     public void Evaluate_preserves_the_fallback_rule_id_when_it_delegates_to_builtin_default()
     {
         var profile = new TrainingRuleProfile();

@@ -26,6 +26,53 @@ public class WarmUiShellTests
     }
 
     [Fact]
+    public void RaceMainWindow_uses_packaged_sleep_runner_icon()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var iconStream = typeof(RaceMainWindow).Assembly.GetManifestResourceStream("SleepRunner.AppIcon.ico");
+            Assert.NotNull(iconStream);
+
+            using var expectedIcon = new Icon(iconStream!);
+            using var expectedBitmap = expectedIcon.ToBitmap();
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                new StubRaceController());
+
+            Assert.NotNull(window.Icon);
+            using var actualBitmap = window.Icon!.ToBitmap();
+            Assert.Equal(expectedBitmap.Size, actualBitmap.Size);
+            Assert.Equal(expectedBitmap.GetPixel(expectedBitmap.Width / 2, expectedBitmap.Height / 2),
+                actualBitmap.GetPixel(actualBitmap.Width / 2, actualBitmap.Height / 2));
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_switches_to_running_icon_for_active_states()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var iconStream = typeof(RaceMainWindow).Assembly.GetManifestResourceStream("SleepRunner.RunningAppIcon.ico");
+            Assert.NotNull(iconStream);
+
+            using var expectedIcon = new Icon(iconStream!);
+            using var expectedBitmap = expectedIcon.ToBitmap();
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                new StubRaceController());
+
+            WinFormsTestHost.Invoke(window, "ApplyState", RaceState.Running);
+
+            Assert.NotNull(window.Icon);
+            using var actualBitmap = window.Icon!.ToBitmap();
+            Assert.Equal(expectedBitmap.Size, actualBitmap.Size);
+            int sampleX = expectedBitmap.Width * 5 / 6;
+            int sampleY = expectedBitmap.Height / 6;
+            Assert.Equal(expectedBitmap.GetPixel(sampleX, sampleY), actualBitmap.GetPixel(sampleX, sampleY));
+        });
+    }
+
+    [Fact]
     public void RaceMainWindow_places_status_and_actions_inside_shared_hero_card()
     {
         WinFormsTestHost.Run(() =>

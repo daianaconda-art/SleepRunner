@@ -140,7 +140,7 @@ public static class TrainingRuleStore
 
         foreach (var rule in source.Rules)
         {
-            clone.Rules.Add(new TrainingRuleCard
+            var ruleClone = new TrainingRuleCard
             {
                 Id = rule.Id,
                 Field = rule.Field,
@@ -149,7 +149,19 @@ public static class TrainingRuleStore
                 Action = rule.Action,
                 Enabled = rule.Enabled,
                 IsFallback = rule.IsFallback,
-            });
+            };
+
+            foreach (TrainingRuleCondition condition in rule.Conditions)
+            {
+                ruleClone.Conditions.Add(new TrainingRuleCondition
+                {
+                    Field = condition.Field,
+                    Operator = condition.Operator,
+                    Value = condition.Value,
+                });
+            }
+
+            clone.Rules.Add(ruleClone);
         }
 
         return clone;

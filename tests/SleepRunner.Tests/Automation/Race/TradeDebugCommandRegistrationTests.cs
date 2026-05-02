@@ -9,6 +9,17 @@ public class TradeDebugCommandRegistrationTests
     [Fact]
     public void CreateDefault_registers_debug_trade_flow_command()
     {
+        AssertCommandResolves("--debug-trade-flow");
+    }
+
+    [Fact]
+    public void CreateDefault_registers_debug_trade_hotkeys_command()
+    {
+        AssertCommandResolves("--debug-trade-hotkeys");
+    }
+
+    private static void AssertCommandResolves(string commandName)
+    {
         Assembly asm = LoadSleepRunnerAssembly();
         Type dispatcherType = asm.GetType("SleepRunner.Cli.CliDispatcher")
             ?? throw new Xunit.Sdk.XunitException("CliDispatcher type was not found.");
@@ -22,7 +33,7 @@ public class TradeDebugCommandRegistrationTests
                                     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                                 ?? throw new Xunit.Sdk.XunitException("CliDispatcher.TryResolve was not found.");
 
-        object?[] args = [new[] { "--debug-trade-flow" }, null];
+        object?[] args = [new[] { commandName }, null];
         bool resolved = (bool)tryResolve.Invoke(dispatcher, args)!;
 
         Assert.True(resolved);
