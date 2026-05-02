@@ -798,4 +798,5 @@ internal sealed class TradeOffer
     public bool AffectsStaminaStat { get; set; }
     public bool HasBuyButtonVisible { get; set; }
     public bool IsBuyDisabled { get; set; }
+    public bool IsRowSoldOut { get; set; }
 }

@@ -42,7 +42,9 @@ internal static class TradeBuyActions
 
     public static TradeBuyabilityState ReadBuyabilityState(TradeOffer offer)
     {
-        bool purchasedState = IsPurchasedStateText(offer.SlotText) || IsPurchasedStateText(offer.EffectText);
+        bool purchasedState = offer.IsRowSoldOut ||
+                              IsPurchasedStateText(offer.SlotText) ||
+                              IsPurchasedStateText(offer.EffectText);
         return TradeInteractionPolicy.EvaluateBuyability(
             offer.HasBuyButtonVisible,
             offer.IsBuyDisabled,

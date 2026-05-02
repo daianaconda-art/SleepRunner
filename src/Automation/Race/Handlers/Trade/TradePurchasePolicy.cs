@@ -25,6 +25,7 @@ internal static class TradePurchasePolicy
         bool isMustBuy = isPotentialPoint || IsTradeKeywordOffer(slotText, effectText, hasReliableSlotText) || isStaminaRecover;
         bool hasBuyButtonVisible = TradeBuyActions.HasVisibleBuySignal(detailShot);
         bool isBuyDisabled = TradeBuyActions.IsBuyButtonGrayDisabled(detailShot);
+        bool isRowSoldOut = TradeDetailOcr.IsRowMarkedSoldOut(detailShot, slotIndex);
 
         var offer = new TradeOffer
         {
@@ -42,10 +43,11 @@ internal static class TradePurchasePolicy
             IsStaminaRecover = isStaminaRecover,
             AffectsStaminaStat = affectsStaminaStat,
             HasBuyButtonVisible = hasBuyButtonVisible,
-            IsBuyDisabled = isBuyDisabled
+            IsBuyDisabled = isBuyDisabled,
+            IsRowSoldOut = isRowSoldOut
         };
 
-        Logger.Log($"[Race:Trade] Trade offer[{slotIndex + 1}]: price={price}, strengthGain={strengthGain}, staminaRecover={staminaRecover}, strengthMatch={isStrengthIncrease}, staminaMatch={isStaminaRecover}, affectsStrengthStat={affectsStrengthStat}, affectsStaminaStat={affectsStaminaStat}, potentialPoint={isPotentialPoint}, mustBuy={isMustBuy}, slotReliable={hasReliableSlotText}, buyVisible={hasBuyButtonVisible}, buyDisabled={isBuyDisabled}, slot='{slotText}', effect='{effectText}'");
+        Logger.Log($"[Race:Trade] Trade offer[{slotIndex + 1}]: price={price}, strengthGain={strengthGain}, staminaRecover={staminaRecover}, strengthMatch={isStrengthIncrease}, staminaMatch={isStaminaRecover}, affectsStrengthStat={affectsStrengthStat}, affectsStaminaStat={affectsStaminaStat}, potentialPoint={isPotentialPoint}, mustBuy={isMustBuy}, slotReliable={hasReliableSlotText}, buyVisible={hasBuyButtonVisible}, buyDisabled={isBuyDisabled}, rowSoldOut={isRowSoldOut}, slot='{slotText}', effect='{effectText}'");
         return offer;
     }
 
@@ -79,7 +81,8 @@ internal static class TradePurchasePolicy
             IsStaminaRecover = isStaminaRecover,
             AffectsStaminaStat = affectsStaminaStat,
             HasBuyButtonVisible = false,
-            IsBuyDisabled = soldOut
+            IsBuyDisabled = soldOut,
+            IsRowSoldOut = soldOut
         };
     }
 

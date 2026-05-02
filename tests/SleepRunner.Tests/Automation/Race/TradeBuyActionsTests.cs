@@ -96,6 +96,20 @@ public class TradeBuyActionsTests
             points);
     }
 
+    [Fact]
+    public void ReadBuyabilityState_marks_row_sold_out_offer_as_purchased()
+    {
+        object offer = CreateTradeOffer();
+        Type offerType = offer.GetType();
+        SetProperty(offerType, offer, "HasBuyButtonVisible", false);
+        SetProperty(offerType, offer, "IsBuyDisabled", false);
+        SetProperty(offerType, offer, "IsRowSoldOut", true);
+
+        string state = InvokeReadBuyabilityState(offer);
+
+        Assert.Equal("Purchased", state);
+    }
+
     private static MethodInfo GetAsyncMoveNext(string methodName)
     {
         return GetAsyncMoveNext("SleepRunner.Automation.Race.Handlers.Trade.TradeBuyActions", methodName);
@@ -223,6 +237,37 @@ public class TradeBuyActionsTests
                             ?? throw new Xunit.Sdk.XunitException("TradeBuyActions.GetBuyFallbackClickPoints was not found.");
 
         return ((IEnumerable<(double X, double Y)>)method.Invoke(null, [])!).ToArray();
+    }
+
+    private static string InvokeReadBuyabilityState(object offer)
+    {
+        Type actionsType = GetTradeBuyActionsType();
+        MethodInfo method = actionsType.GetMethod(
+                                "ReadBuyabilityState",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("TradeBuyActions.ReadBuyabilityState was not found.");
+
+        return method.Invoke(null, [offer])!.ToString()!;
+    }
+
+    private static object CreateTradeOffer()
+    {
+        Type offerType = Type.GetType("SleepRunner.Automation.Race.Handlers.Trade.TradeOffer, SleepRunner")
+                         ?? throw new Xunit.Sdk.XunitException("TradeOffer type was not found.");
+        object offer = Activator.CreateInstance(offerType)!
+                       ?? throw new Xunit.Sdk.XunitException("TradeOffer could not be created.");
+
+        SetProperty(offerType, offer, "SlotIndex", 0);
+        SetProperty(offerType, offer, "SlotText", "sold-out-row");
+        SetProperty(offerType, offer, "EffectText", "effect");
+        return offer;
+    }
+
+    private static void SetProperty(Type type, object instance, string name, object value)
+    {
+        PropertyInfo property = type.GetProperty(name)
+                                ?? throw new Xunit.Sdk.XunitException($"TradeOffer.{name} property was not found.");
+        property.SetValue(instance, value);
     }
 
     private static Type GetTradeBuyActionsType()
