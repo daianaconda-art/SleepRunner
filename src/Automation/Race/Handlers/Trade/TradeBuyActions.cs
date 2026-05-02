@@ -14,6 +14,8 @@ namespace SleepRunner.Automation.Race.Handlers.Trade;
 /// </summary>
 internal static class TradeBuyActions
 {
+    private const int DetailSettleDelayMs = 500;
+
     /// <summary>
     /// 详情页就绪：详情展开/购买按钮可见/灰态按钮三者任一即可
     /// </summary>
@@ -152,19 +154,25 @@ internal static class TradeBuyActions
         bool hotkeySent = await ctx.SendGameAction(slotAction);
         if (hotkeySent)
         {
-            await ctx.Wait(430);
+            await ctx.WaitUnscaled(DetailSettleDelayMs);
             var hotkeyShot = ctx.CaptureScreen();
             if (hotkeyShot == null || hotkeyShot.Empty())
             {
                 hotkeyShot?.Dispose();
             }
-            else if (IsOfferDetailReady(hotkeyShot) &&
-                     IsCurrentDetailOwnedBySlot(hotkeyShot, slotIndex))
+            else if (IsOfferDetailReady(hotkeyShot))
             {
-                Logger.Log($"[Race:Trade] Trade detail opened by hotkey {slotAction}.");
-                var clone = hotkeyShot.Clone();
+                bool owned = IsCurrentDetailOwnedBySlot(hotkeyShot, slotIndex);
+                if (!requireOwnedAfterClick || owned)
+                {
+                    Logger.Log($"[Race:Trade] Trade detail opened by hotkey {slotAction}, owned={owned}.");
+                    var clone = hotkeyShot.Clone();
+                    hotkeyShot.Dispose();
+                    return clone;
+                }
+
+                Logger.Log($"[Race:Trade] Trade detail hotkey {slotAction} did not select slot {slotIndex + 1}, falling back to row click.");
                 hotkeyShot.Dispose();
-                return clone;
             }
             else
             {
@@ -178,7 +186,7 @@ internal static class TradeBuyActions
         }
 
         await ctx.ClickAtPercent(slot.ClickX, slot.ClickY);
-        await ctx.Wait(430);
+        await ctx.WaitUnscaled(DetailSettleDelayMs);
 
         var shot = ctx.CaptureScreen();
         if (shot == null || shot.Empty())

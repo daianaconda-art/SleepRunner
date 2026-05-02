@@ -100,6 +100,13 @@ public class GameContext : IDisposable
         await Task.Delay(actual, _token);
     }
 
+    public async Task WaitUnscaled(int ms)
+    {
+        int actual = Math.Max(0, ms);
+        Log.Log($"WaitUnscaled: {actual}ms");
+        await Task.Delay(actual, _token);
+    }
+
     /// <summary>
     /// 反复点击左上角返回，直到 OCR 检测到跑马主菜单
     /// </summary>

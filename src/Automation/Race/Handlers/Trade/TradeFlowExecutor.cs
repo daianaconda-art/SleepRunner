@@ -274,32 +274,25 @@ public sealed class DefaultTradeFlowExecutor : ITradeFlowExecutor
                     continue;
                 }
 
-                using var freshShot = ctx.CaptureScreen();
-                if (freshShot == null || freshShot.Empty())
+                if (!TradeBuyActions.IsOfferDetailReady(detailShot))
                 {
-                    Logger.Log($"[Race:Trade] Trade offer[{slotIndex + 1}]: fresh capture empty after detail open (attempt={attempt}).");
+                    Logger.Log($"[Race:Trade] Trade offer[{slotIndex + 1}]: opened detail snapshot is not ready (attempt={attempt}).");
                     continue;
                 }
 
-                if (!TradeBuyActions.IsOfferDetailReady(freshShot))
-                {
-                    Logger.Log($"[Race:Trade] Trade offer[{slotIndex + 1}]: fresh capture no longer shows detail ready (attempt={attempt}).");
-                    continue;
-                }
-
-                bool detailOwnedBySlot = TradeBuyActions.IsCurrentDetailOwnedBySlot(freshShot, slotIndex);
-                var offer = TradePurchasePolicy.BuildOfferFromShot(freshShot, slotIndex);
+                bool detailOwnedBySlot = TradeBuyActions.IsCurrentDetailOwnedBySlot(detailShot, slotIndex);
+                var offer = TradePurchasePolicy.BuildOfferFromShot(detailShot, slotIndex);
                 bool strongUnownedDetail = !detailOwnedBySlot && TradePurchasePolicy.IsStrongDetailPurchaseCandidate(offer);
                 if (!detailOwnedBySlot && !strongUnownedDetail)
                 {
-                    Logger.Log($"[Race:Trade] Trade offer[{slotIndex + 1}]: fresh capture belongs to another slot (attempt={attempt}).");
+                    Logger.Log($"[Race:Trade] Trade offer[{slotIndex + 1}]: opened detail belongs to another slot (attempt={attempt}).");
                     continue;
                 }
 
                 if (strongUnownedDetail)
                 {
-                    string rowText = TradeDetailOcr.ReadRowSlotText(freshShot, slotIndex);
-                    string detailTitle = TradeDetailOcr.ReadDetailTitleText(freshShot);
+                    string rowText = TradeDetailOcr.ReadRowSlotText(detailShot, slotIndex);
+                    string detailTitle = TradeDetailOcr.ReadDetailTitleText(detailShot);
                     Logger.Log(
                         $"[Race:Trade] Trade offer[{slotIndex + 1}]: ownership uncertain but strong detail signal accepted " +
                         $"(row='{rowText}', detail='{detailTitle}', price={offer.Price}, effect='{offer.EffectText}').");

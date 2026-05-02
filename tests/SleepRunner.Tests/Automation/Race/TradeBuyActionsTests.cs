@@ -42,6 +42,44 @@ public class TradeBuyActionsTests
     }
 
     [Fact]
+    public void TryOpenOfferDetailAsync_uses_unscaled_detail_settle_waits()
+    {
+        MethodInfo moveNext = GetAsyncMoveNext("TryOpenOfferDetailAsync");
+        MethodBase[] calls = GetCalledMethods(moveNext).ToArray();
+
+        int unscaledWaits = calls.Count(IsWaitUnscaled);
+        int scaledWaits = calls.Count(IsWait);
+
+        Assert.True(
+            unscaledWaits >= 2,
+            "Trade detail opening should wait with an unscaled delay after the slot hotkey and after the row-click fallback.");
+        Assert.Equal(0, scaledWaits);
+    }
+
+    [Fact]
+    public void ScanOfferWithRetriesAsync_uses_opened_detail_snapshot_without_fresh_recapture()
+    {
+        MethodInfo moveNext = GetAsyncMoveNext(
+            "SleepRunner.Automation.Race.Handlers.Trade.DefaultTradeFlowExecutor",
+            "ScanOfferWithRetriesAsync");
+        MethodBase[] calls = GetCalledMethods(moveNext).ToArray();
+
+        int openIndex = Array.FindIndex(calls, IsTryOpenOfferDetail);
+        int buildIndex = Array.FindIndex(calls, openIndex + 1, IsBuildOfferFromShot);
+
+        Assert.True(openIndex >= 0, "ScanOfferWithRetriesAsync should open the detail view through TradeBuyActions.");
+        Assert.True(buildIndex > openIndex, "ScanOfferWithRetriesAsync should build an offer from the opened detail snapshot.");
+
+        bool recapturedBeforeBuild = calls
+            .Skip(openIndex + 1)
+            .Take(buildIndex - openIndex - 1)
+            .Any(IsCaptureScreen);
+        Assert.False(
+            recapturedBeforeBuild,
+            "ScanOfferWithRetriesAsync should not immediately recapture after a validated detail-open snapshot; fresh OCR jitter can discard the selected slot.");
+    }
+
+    [Fact]
     public void GetBuyFallbackClickPoints_uses_fixed_buy_button_click_points()
     {
         IReadOnlyList<(double X, double Y)> points = InvokeGetBuyFallbackClickPoints();
@@ -60,14 +98,20 @@ public class TradeBuyActionsTests
 
     private static MethodInfo GetAsyncMoveNext(string methodName)
     {
-        Type actionsType = GetTradeBuyActionsType();
-        MethodInfo method = actionsType.GetMethod(
+        return GetAsyncMoveNext("SleepRunner.Automation.Race.Handlers.Trade.TradeBuyActions", methodName);
+    }
+
+    private static MethodInfo GetAsyncMoveNext(string typeName, string methodName)
+    {
+        Type targetType = Type.GetType($"{typeName}, SleepRunner")
+                          ?? throw new Xunit.Sdk.XunitException($"{typeName} type was not found.");
+        MethodInfo method = targetType.GetMethod(
                                 methodName,
                                 BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
-                            ?? throw new Xunit.Sdk.XunitException($"TradeBuyActions.{methodName} was not found.");
+                            ?? throw new Xunit.Sdk.XunitException($"{typeName}.{methodName} was not found.");
 
         Type stateMachineType = method.GetCustomAttribute<AsyncStateMachineAttribute>()?.StateMachineType
-                                ?? throw new Xunit.Sdk.XunitException($"TradeBuyActions.{methodName} has no async state machine.");
+                                ?? throw new Xunit.Sdk.XunitException($"{typeName}.{methodName} has no async state machine.");
         return stateMachineType.GetMethod("MoveNext", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
                ?? throw new Xunit.Sdk.XunitException($"TradeBuyActions.{methodName} MoveNext was not found.");
     }
@@ -138,6 +182,36 @@ public class TradeBuyActionsTests
     {
         return method.Name == "ClickAtPercent" &&
                method.DeclaringType?.FullName == "SleepRunner.Automation.GameContext";
+    }
+
+    private static bool IsWaitUnscaled(MethodBase method)
+    {
+        return method.Name == "WaitUnscaled" &&
+               method.DeclaringType?.FullName == "SleepRunner.Automation.GameContext";
+    }
+
+    private static bool IsWait(MethodBase method)
+    {
+        return method.Name == "Wait" &&
+               method.DeclaringType?.FullName == "SleepRunner.Automation.GameContext";
+    }
+
+    private static bool IsCaptureScreen(MethodBase method)
+    {
+        return method.Name == "CaptureScreen" &&
+               method.DeclaringType?.FullName == "SleepRunner.Automation.GameContext";
+    }
+
+    private static bool IsTryOpenOfferDetail(MethodBase method)
+    {
+        return method.Name == "TryOpenOfferDetailAsync" &&
+               method.DeclaringType?.FullName == "SleepRunner.Automation.Race.Handlers.Trade.TradeBuyActions";
+    }
+
+    private static bool IsBuildOfferFromShot(MethodBase method)
+    {
+        return method.Name == "BuildOfferFromShot" &&
+               method.DeclaringType?.FullName == "SleepRunner.Automation.Race.Handlers.Trade.TradePurchasePolicy";
     }
 
     private static IReadOnlyList<(double X, double Y)> InvokeGetBuyFallbackClickPoints()
