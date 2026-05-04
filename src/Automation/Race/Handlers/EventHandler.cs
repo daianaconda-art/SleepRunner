@@ -124,10 +124,6 @@ public class EventHandler : IRaceHandler
         string title = EventOcrRegions.ReadEventTitleText(screenshot);
         string options = EventOcrRegions.ReadEventOptionsText(screenshot);
         string story = EventOcrRegions.ReadEventStoryText(screenshot);
-        if (EventScreenChecks.IsDefense175Decision(options))
-        {
-            return $"Event: defense-175 rule hit (title='{title}', options='{options}') -> try option 2 first, fallback option 3 if no screen change in 2s";
-        }
 
         var matchedEvent = _catalog.FindMatchingEvent(title, options, story);
         if (matchedEvent == null)
@@ -176,14 +172,6 @@ public class EventHandler : IRaceHandler
         Log.Log($"Options OCR: '{options}'");
         string story = EventOcrRegions.ReadEventStoryText(shot);
         Log.Log($"Story OCR: '{story}'");
-
-        // 特判：防御/保护达到 175 时优先选 2；2 秒内无变化则补点 3
-        if (EventScreenChecks.IsDefense175Decision(options))
-        {
-            Log.Log($"Defense-175 rule hit (title='{title}'), try option 2 first.");
-            await ClickOptionWithFallbackAsync(ctx, shot, primaryOption: 2, fallbackOption: 3, totalOptions: 3);
-            return;
-        }
 
         var matchedEvent = _catalog.FindMatchingEvent(title, options, story);
         if (matchedEvent == null)
@@ -270,28 +258,20 @@ public class EventHandler : IRaceHandler
         int optionIndex;
         int totalOptions;
 
-        if (EventScreenChecks.IsDefense175Decision(options))
-        {
-            optionIndex = 2;
-            totalOptions = 3;
-        }
-        else
-        {
-            var matchedEvent = _catalog.FindMatchingEvent(title, options, story);
-            if (matchedEvent == null)
-                return;
+        var matchedEvent = _catalog.FindMatchingEvent(title, options, story);
+        if (matchedEvent == null)
+            return;
 
-            int? optIdx = matchedEvent.GetRecommendedOption();
-            if (matchedEvent.Status == "pending" || optIdx == null)
-                return;
+        int? optIdx = matchedEvent.GetRecommendedOption();
+        if (matchedEvent.Status == "pending" || optIdx == null)
+            return;
 
-            optionIndex = optIdx.Value;
-            totalOptions = Math.Max(1, matchedEvent.Options.Count);
-        }
+        optionIndex = optIdx.Value;
+        totalOptions = Math.Max(1, matchedEvent.Options.Count);
 
         double clickY = EventOptionGeometry.ResolveOptionClickY(
             shot,
-            matchedEvent: null,
+            matchedEvent,
             optionIndex,
             totalOptions);
         int px = (int)(shot.Width * EventOptionGeometry.OptionClickX);
@@ -582,7 +562,7 @@ public class EventHandler : IRaceHandler
     }
 
     /// <summary>
-    /// 通过像素差异比判断画面是否发生变化（防御-175 等帧级判定也走这个）
+    /// 通过像素差异比判断画面是否发生变化。
     /// </summary>
     private static bool IsScreenChanged(Mat before, Mat after)
     {
@@ -606,7 +586,7 @@ public class EventHandler : IRaceHandler
         if (total <= 0) return true;
 
         double ratio = changedPixels / total;
-        Log.Log($"Defense-175: frame diff ratio={ratio:F4}");
+        Log.Log($"Event change check: frame diff ratio={ratio:F4}");
         return ratio > 0.010;
     }
 

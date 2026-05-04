@@ -75,6 +75,9 @@ internal static class TrainingIconCounter
             // 灰色/高亮立绘：valMean≈135 的真头像 valStd 通常 ≥46（实测 46.4 / 73.6），
             // 而行高亮/分隔线误判 valStd 仅 ~22-23；阈值收紧到 30 既切误判又不动真样本
             bool grayIcon = valMean > 135 && valStd > 30;
+            if (grayIcon)
+                grayIcon = LooksLikeGrayIconShape(region);
+
             bool hasIcon = colorIcon || grayIcon;
             string path = hasIcon ? (colorIcon ? "color" : "gray") : "none";
 
@@ -88,6 +91,50 @@ internal static class TrainingIconCounter
         }
 
         return count;
+    }
+
+    private static bool LooksLikeGrayIconShape(Mat hsvRegion)
+    {
+        int area = Math.Max(1, hsvRegion.Rows * hsvRegion.Cols);
+        int brightPixels = 0;
+        int minX = hsvRegion.Cols;
+        int minY = hsvRegion.Rows;
+        int maxX = -1;
+        int maxY = -1;
+
+        for (int y = 0; y < hsvRegion.Rows; y++)
+        {
+            for (int x = 0; x < hsvRegion.Cols; x++)
+            {
+                Vec3b hsv = hsvRegion.At<Vec3b>(y, x);
+                if (hsv.Item2 <= 150)
+                    continue;
+
+                brightPixels++;
+                minX = Math.Min(minX, x);
+                minY = Math.Min(minY, y);
+                maxX = Math.Max(maxX, x);
+                maxY = Math.Max(maxY, y);
+            }
+        }
+
+        if (brightPixels < area * 0.18 || maxX < minX || maxY < minY)
+            return false;
+
+        int brightWidth = maxX - minX + 1;
+        int brightHeight = maxY - minY + 1;
+        double aspect = brightWidth / (double)Math.Max(1, brightHeight);
+        if (aspect is < 0.65 or > 1.55)
+            return false;
+
+        double regionCenterX = (hsvRegion.Cols - 1) / 2.0;
+        double regionCenterY = (hsvRegion.Rows - 1) / 2.0;
+        double brightCenterX = minX + (brightWidth - 1) / 2.0;
+        double brightCenterY = minY + (brightHeight - 1) / 2.0;
+        double centerTolerance = Math.Max(1.0, Math.Min(hsvRegion.Cols, hsvRegion.Rows) * 0.20);
+
+        return Math.Abs(brightCenterX - regionCenterX) <= centerTolerance &&
+               Math.Abs(brightCenterY - regionCenterY) <= centerTolerance;
     }
 
     /// <summary>

@@ -154,13 +154,14 @@
       "event_name": "袭击",
       "category": "七月下旬（固定事件）",
       "status": "confirmed",
-      "recommended_option": 1,
+      "recommended_option": 2,
+      "fallback_option": 1,
       "options": [
-        { "index": 1, "keyword": "让我们利用地形绕过他们", "alias": ["利用地形", "绕过"] },
-        { "index": 2, "keyword": "保持冷静，巩固防御", "alias": ["冷静", "巩固防御"] },
-        { "index": 3, "keyword": "我们逃到楼上去吧", "alias": ["逃到楼上"] }
+        { "index": 1, "keyword": "让我们利用地形绕过他们", "alias": ["利用地形", "绕过", "甩开"] },
+        { "index": 2, "keyword": "保持冷静，巩固防御", "alias": ["冷静", "巩固防御", "沉着", "加强防御"] },
+        { "index": 3, "keyword": "我们逃到楼上去吧", "alias": ["逃到楼上", "逃往上层", "上层"] }
       ],
-      "note": "如果想兼顾pvp非常推荐选1拿速度小技能打折。如果心情不满且防御≥175可选2回心情"
+      "note": "默认先选2回心情；若点击无效则回退选1拿速度小技能打折"
     },
     {
       "id": "slime_raid",

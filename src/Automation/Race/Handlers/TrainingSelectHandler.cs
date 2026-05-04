@@ -71,8 +71,9 @@ public class TrainingSelectHandler : IRaceHandler
         int? staminaStat;
         using (var preShot = ctx.CaptureScreen())
         {
-            strengthStat = NormalizeStat(await TrainingPowerStat.ReadPowerStatAsync(preShot));
-            staminaStat = NormalizeStat(await TrainingPowerStat.ReadStaminaStatAsync(preShot));
+            TrainingPowerStat.AttributePanelStats stats = await TrainingPowerStat.ReadAttributePanelStatsAsync(preShot);
+            strengthStat = stats.Strength;
+            staminaStat = stats.Stamina;
         }
 
         var iconCounts = new int[TrainingOptions.Length];
@@ -247,6 +248,7 @@ public class TrainingSelectHandler : IRaceHandler
         Log.Log("Running lazy training scan snapshot...");
 
         var state = new TrainingMetricScanState();
+        await EnsureAttributePanelStatsAsync(ctx, state, "Lazy scan entry stats");
 
         while (true)
         {
@@ -281,6 +283,30 @@ public class TrainingSelectHandler : IRaceHandler
         }
     }
 
+    private async Task<bool> EnsureAttributePanelStatsAsync(
+        GameContext ctx,
+        TrainingMetricScanState state,
+        string logPrefix)
+    {
+        using var shot = ctx.CaptureScreen();
+        TrainingPowerStat.AttributePanelStats stats = await TrainingPowerStat.ReadAttributePanelStatsAsync(shot);
+        bool madeProgress = state.UpdateStats(stats.Strength, stats.Stamina);
+        madeProgress |= MarkMissingStatUnavailable(state, TrainingRuleField.StrengthStat);
+        madeProgress |= MarkMissingStatUnavailable(state, TrainingRuleField.StaminaStat);
+        Log.Log($"{logPrefix}: strength={FormatStat(state.StrengthStat)}, stamina={FormatStat(state.StaminaStat)}");
+        return madeProgress;
+    }
+
+    private static bool MarkMissingStatUnavailable(TrainingMetricScanState state, TrainingRuleField field)
+    {
+        return field switch
+        {
+            TrainingRuleField.StrengthStat when !state.StrengthStat.HasValue => state.MarkMetricUnavailable(field),
+            TrainingRuleField.StaminaStat when !state.StaminaStat.HasValue => state.MarkMetricUnavailable(field),
+            _ => false,
+        };
+    }
+
     private async Task<bool> EnsureMetricAsync(GameContext ctx, TrainingMetricScanState state, TrainingRuleField field)
     {
         switch (field)
@@ -288,8 +314,13 @@ public class TrainingSelectHandler : IRaceHandler
             case TrainingRuleField.StrengthStat:
                 if (!state.StrengthStat.HasValue)
                 {
-                    using var shot = ctx.CaptureScreen();
-                    bool madeProgress = state.UpdateStats(NormalizeStat(await TrainingPowerStat.ReadPowerStatAsync(shot)), null);
+                    if (state.IsMetricUnavailable(TrainingRuleField.StrengthStat))
+                    {
+                        Log.Log("Lazy scan stat: strength already unavailable");
+                        return true;
+                    }
+
+                    bool madeProgress = await EnsureAttributePanelStatsAsync(ctx, state, "Lazy scan stat panel");
                     Log.Log($"Lazy scan stat: strength={FormatStat(state.StrengthStat)}");
                     return madeProgress;
                 }
@@ -299,8 +330,13 @@ public class TrainingSelectHandler : IRaceHandler
             case TrainingRuleField.StaminaStat:
                 if (!state.StaminaStat.HasValue)
                 {
-                    using var shot = ctx.CaptureScreen();
-                    bool madeProgress = state.UpdateStats(null, NormalizeStat(await TrainingPowerStat.ReadStaminaStatAsync(shot)));
+                    if (state.IsMetricUnavailable(TrainingRuleField.StaminaStat))
+                    {
+                        Log.Log("Lazy scan stat: stamina already unavailable");
+                        return true;
+                    }
+
+                    bool madeProgress = await EnsureAttributePanelStatsAsync(ctx, state, "Lazy scan stat panel");
                     Log.Log($"Lazy scan stat: stamina={FormatStat(state.StaminaStat)}");
                     return madeProgress;
                 }
@@ -382,6 +418,8 @@ public class TrainingSelectHandler : IRaceHandler
 
     private sealed class TrainingMetricScanState
     {
+        private readonly HashSet<TrainingRuleField> _unavailableFields = new();
+
         public int[] IconCounts { get; } = new int[TrainingOptions.Length];
 
         public int[] FailRates { get; } = new int[TrainingOptions.Length];
@@ -404,7 +442,33 @@ public class TrainingSelectHandler : IRaceHandler
             int? previousStamina = StaminaStat;
             StrengthStat = MergeNonDecreasingStat(StrengthStat, strengthStat);
             StaminaStat = MergeNonDecreasingStat(StaminaStat, staminaStat);
+            if (strengthStat.HasValue)
+            {
+                _unavailableFields.Remove(TrainingRuleField.StrengthStat);
+            }
+
+            if (staminaStat.HasValue)
+            {
+                _unavailableFields.Remove(TrainingRuleField.StaminaStat);
+            }
+
             return StrengthStat != previousStrength || StaminaStat != previousStamina;
+        }
+
+        public bool MarkMetricUnavailable(TrainingRuleField field)
+        {
+            if ((field == TrainingRuleField.StrengthStat && StrengthStat.HasValue) ||
+                (field == TrainingRuleField.StaminaStat && StaminaStat.HasValue))
+            {
+                return false;
+            }
+
+            return _unavailableFields.Add(field);
+        }
+
+        public bool IsMetricUnavailable(TrainingRuleField field)
+        {
+            return _unavailableFields.Contains(field);
         }
 
         public void SetRowMetrics(int rowIndex, int iconCount, int failRate)
@@ -426,6 +490,7 @@ public class TrainingSelectHandler : IRaceHandler
                 KnownFailRateMask = KnownFailRateMask,
                 StrengthStat = StrengthStat,
                 StaminaStat = StaminaStat,
+                UnavailableFields = [.. _unavailableFields],
                 BuildDirection = strategy.BuildDirection,
                 LegacyFailRateThreshold = strategy.FailRateThreshold,
                 LegacyRushThreshold = strategy.RushThreshold,

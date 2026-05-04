@@ -21,6 +21,13 @@ public class CardSelectHandler : IRaceHandler
         (0.00, 0.04, 0.26, 0.16),
     ];
 
+    private static readonly (double X, double Y, double W, double H)[] RewardMarkerRegions =
+    [
+        (0.00, 0.00, 0.22, 0.08),
+        (0.00, 0.00, 0.26, 0.12),
+        (0.00, 0.00, 0.30, 0.14),
+    ];
+
     private static readonly (double X, double Y, double W, double H)[] CardTextRegions =
     [
         (0.06, 0.26, 0.27, 0.38),
@@ -457,6 +464,19 @@ public class CardSelectHandler : IRaceHandler
 
             if (string.IsNullOrEmpty(firstNonEmpty))
                 firstNonEmpty = title;
+        }
+
+        foreach (var region in RewardMarkerRegions)
+        {
+            string marker = NormalizeOcr(_readRegion(screenshot, region.X, region.Y, region.W, region.H));
+            if (string.IsNullOrEmpty(marker))
+                continue;
+
+            if (IsCardSelectTitle(marker))
+                return marker;
+
+            if (string.IsNullOrEmpty(firstNonEmpty))
+                firstNonEmpty = marker;
         }
 
         return firstNonEmpty;

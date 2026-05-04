@@ -62,6 +62,7 @@ internal static class CommissionScreenChecks
                                 detailText.Contains("评鉴战", StringComparison.Ordinal);
         bool hasAccept = acceptText.Contains("接受", StringComparison.Ordinal) ||
                          detailText.Contains("接受", StringComparison.Ordinal);
+        bool hasPrepareInstruction = IsAppraisePrepareInstructionText(detailText);
         bool hasDetailSheet = detailText.Contains("建议综合等级", StringComparison.Ordinal) ||
                               detailText.Contains("登场敌人", StringComparison.Ordinal) ||
                               detailText.Contains("额外奖励", StringComparison.Ordinal) ||
@@ -70,7 +71,20 @@ internal static class CommissionScreenChecks
                               detailText.Contains("跳过战斗", StringComparison.Ordinal) ||
                               acceptText.Contains("跳过", StringComparison.Ordinal);
         bool tierSelection = IsCommissionTierSelectionText(detailText);
-        return hasAppraiseTitle && hasAccept && hasDetailSheet && !hasPopupAction && !tierSelection;
+        return hasAppraiseTitle && (hasAccept || hasPrepareInstruction) && hasDetailSheet && !hasPopupAction && !tierSelection;
+    }
+
+    private static bool IsAppraisePrepareInstructionText(string detailText)
+    {
+        if (string.IsNullOrEmpty(detailText))
+            return false;
+
+        bool hasPrepare = detailText.Contains("战前准备", StringComparison.Ordinal) ||
+                          detailText.Contains("即将开始", StringComparison.Ordinal);
+        bool hasBattleSheet = detailText.Contains("建议综合等级", StringComparison.Ordinal) ||
+                              detailText.Contains("登场敌人", StringComparison.Ordinal) ||
+                              detailText.Contains("可获得奖励", StringComparison.Ordinal);
+        return hasPrepare && hasBattleSheet;
     }
 
     internal static bool IsCommissionTierSelectionText(string detailText)

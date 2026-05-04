@@ -59,7 +59,12 @@ public static class TrainingBuiltInDecision
             : TrainingRuleField.StrengthStat;
         if (!context.TryGetMetric(rushStatField, out int rushStat))
         {
-            return Missing(rushStatField);
+            if (!context.IsMetricUnavailable(rushStatField))
+            {
+                return Missing(rushStatField);
+            }
+
+            rushStat = 0;
         }
 
         if (rushStat >= RushStatMaxValue)

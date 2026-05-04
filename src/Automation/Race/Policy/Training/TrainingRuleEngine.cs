@@ -150,6 +150,11 @@ public static class TrainingRuleEngine
         {
             if (!context.TryGetMetric(condition.Field, out int metric))
             {
+                if (context.IsMetricUnavailable(condition.Field))
+                {
+                    return true;
+                }
+
                 missingField = condition.Field;
                 return false;
             }
@@ -243,6 +248,12 @@ public static class TrainingRuleEngine
 
         if (!context.TryGetMetric(missingField.Value, out int stat))
         {
+            if (context.IsMetricUnavailable(missingField.Value))
+            {
+                missingField = null;
+                return true;
+            }
+
             return false;
         }
 

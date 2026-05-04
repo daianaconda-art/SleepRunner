@@ -18,6 +18,8 @@ public sealed class TrainingDecisionContext
 
     public int? StaminaStat { get; init; }
 
+    public TrainingRuleField[] UnavailableFields { get; init; } = [];
+
     public BuildDirection BuildDirection { get; init; } = BuildDirection.Attack;
 
     public int LegacyFailRateThreshold { get; init; }
@@ -108,11 +110,17 @@ public sealed class TrainingDecisionContext
             KnownFailRateMask = KnownFailRateMask,
             StrengthStat = MergeNonDecreasingStat(StrengthStat, strengthStat),
             StaminaStat = MergeNonDecreasingStat(StaminaStat, staminaStat),
+            UnavailableFields = [.. UnavailableFields],
             BuildDirection = BuildDirection,
             LegacyFailRateThreshold = LegacyFailRateThreshold,
             LegacyRushThreshold = LegacyRushThreshold,
             ProfileName = ProfileName,
         };
+    }
+
+    public bool IsMetricUnavailable(TrainingRuleField field)
+    {
+        return Array.IndexOf(UnavailableFields, field) >= 0;
     }
 
     private static bool TryGetIndexedValue(int[] values, int? knownMask, int index, out int value)

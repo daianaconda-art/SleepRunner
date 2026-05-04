@@ -12,6 +12,8 @@ internal static class TradeInteractionPolicy
 {
     internal static TradeBuyabilityState EvaluateBuyability(bool visibleBuy, bool grayDisabled, bool purchasedState)
     {
+        if (visibleBuy && !grayDisabled)
+            return TradeBuyabilityState.Enabled;
         if (purchasedState)
             return TradeBuyabilityState.Purchased;
         if (grayDisabled)

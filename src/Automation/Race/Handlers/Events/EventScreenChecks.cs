@@ -73,6 +73,7 @@ internal static class EventScreenChecks
     {
         if (string.IsNullOrEmpty(text)) return false;
         if (IsMainMenuLikeText(text)) return false;
+        if (IsAppraisePrepareSheetText(text)) return false;
         if (text.Count(c => c == '+') >= 2)
             return true;
         if (text.Contains("该怎么办", StringComparison.Ordinal) ||
@@ -102,6 +103,19 @@ internal static class EventScreenChecks
             return true;
 
         return false;
+    }
+
+    private static bool IsAppraisePrepareSheetText(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+
+        bool hasAppraise = text.Contains("评鉴战", StringComparison.Ordinal);
+        bool hasPrepare = text.Contains("战前准备", StringComparison.Ordinal) ||
+                          text.Contains("即将开始", StringComparison.Ordinal);
+        bool hasBattleSheet = text.Contains("建议综合等级", StringComparison.Ordinal) ||
+                              text.Contains("登场敌人", StringComparison.Ordinal) ||
+                              text.Contains("可获得奖励", StringComparison.Ordinal);
+        return hasAppraise && hasPrepare && hasBattleSheet;
     }
 
     /// <summary>
@@ -295,19 +309,4 @@ internal static class EventScreenChecks
         return markerHit && optionHit;
     }
 
-    /// <summary>
-    /// 判断是否命中"防御/保护达到175"的事件选项（特殊点选规则）
-    /// </summary>
-    public static bool IsDefense175Decision(string optionsText)
-    {
-        if (string.IsNullOrEmpty(optionsText))
-            return false;
-        bool has175 = optionsText.Contains("175", StringComparison.Ordinal);
-        bool hasDefense = optionsText.Contains("防御", StringComparison.Ordinal) ||
-                          optionsText.Contains("保护", StringComparison.Ordinal);
-        bool hasDefenseAction = optionsText.Contains("加强防御", StringComparison.Ordinal) ||
-                                optionsText.Contains("沉着", StringComparison.Ordinal);
-        bool hasConcatenatedThreshold = Regex.IsMatch(optionsText, @"\d{2,3}175");
-        return (hasDefense && has175) || (hasDefenseAction && hasConcatenatedThreshold);
-    }
 }
