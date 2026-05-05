@@ -54,6 +54,24 @@ public class TrainingAttributePanelStatsTests
         Assert.False(accepted);
     }
 
+    [Fact]
+    public void ShouldAcceptAttributePanelPixelValue_overrides_truncated_cap_ocr_candidate()
+    {
+        bool accepted = InvokeShouldAcceptAttributePanelPixelValue(ocrValue: 125, pixelValue: 1250, pixelConfidence: 0.943);
+
+        Assert.True(accepted);
+    }
+
+    [Fact]
+    public void TryParseAttributePanelCurrentValue_uses_left_side_when_cap_ratio_denominator_is_truncated()
+    {
+        bool parsed = InvokeTryParseAttributePanelCurrentValue("1250/125（", maxValue: 1250, out int value, out int score);
+
+        Assert.True(parsed);
+        Assert.Equal(1250, value);
+        Assert.True(score >= 16);
+    }
+
     private static async Task<object> InvokeReadAttributePanelStatsAsync(Mat shot)
     {
         Type type = Type.GetType("SleepRunner.Automation.Race.Handlers.Training.TrainingPowerStat, SleepRunner")
@@ -93,5 +111,22 @@ public class TrainingAttributePanelStatsTests
                             ?? throw new Xunit.Sdk.XunitException("TrainingPowerStat.ShouldAcceptAttributePanelPixelValue was not found.");
 
         return Assert.IsType<bool>(method.Invoke(null, [ocrValue, pixelValue, pixelConfidence]));
+    }
+
+    private static bool InvokeTryParseAttributePanelCurrentValue(string text, int maxValue, out int value, out int score)
+    {
+        Type type = Type.GetType("SleepRunner.Automation.Race.Handlers.Training.TrainingPowerStat, SleepRunner")
+            ?? throw new Xunit.Sdk.XunitException("TrainingPowerStat type was not found.");
+
+        MethodInfo method = type.GetMethod(
+                                "TryParseAttributePanelCurrentValue",
+                                BindingFlags.Static | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("TrainingPowerStat.TryParseAttributePanelCurrentValue was not found.");
+
+        object?[] args = [text, maxValue, 0, 0];
+        bool parsed = (bool)method.Invoke(null, args)!;
+        value = (int)args[2]!;
+        score = (int)args[3]!;
+        return parsed;
     }
 }

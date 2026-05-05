@@ -57,6 +57,21 @@ public class TradeBuyActionsTests
     }
 
     [Fact]
+    public void TryClickBuyAsync_refreshes_budget_before_purchase_action()
+    {
+        MethodInfo moveNext = GetAsyncMoveNext("TryClickBuyAsync");
+        MethodBase[] calls = GetCalledMethods(moveNext).ToArray();
+
+        int moneyIndex = Array.FindIndex(calls, IsReadCurrentMoney);
+        int purchaseActionIndex = Array.FindIndex(calls, IsSendGameAction);
+
+        Assert.True(moneyIndex >= 0, "TryClickBuyAsync should read the current money from its pre-click snapshot.");
+        Assert.True(
+            moneyIndex < purchaseActionIndex,
+            "TryClickBuyAsync should refresh the budget before sending the purchase action so success verification can detect budget drops.");
+    }
+
+    [Fact]
     public void ScanOfferWithRetriesAsync_uses_opened_detail_snapshot_without_fresh_recapture()
     {
         MethodInfo moveNext = GetAsyncMoveNext(
@@ -284,6 +299,12 @@ public class TradeBuyActionsTests
                method.GetParameters() is { Length: 4 } parameters &&
                parameters[2].ParameterType == typeof(string) &&
                parameters[3].ParameterType == typeof(string);
+    }
+
+    private static bool IsReadCurrentMoney(MethodBase method)
+    {
+        return method.Name == "ReadCurrentMoney" &&
+               method.DeclaringType?.FullName == "SleepRunner.Automation.Race.Handlers.Trade.TradeDetailOcr";
     }
 
     private static bool IsTryBuildSoldOutRowFallback(MethodBase method)

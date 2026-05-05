@@ -107,6 +107,7 @@ internal static class TrainingIconCounter
             colorIcon = satMean < 75
                 ? satStd > 35
                 : satStd > 40;
+            colorIcon &= LooksLikeColoredIconShape(hsvRegion);
         }
 
         bool grayIcon = valMean > 135 && valStd > 30;
@@ -191,6 +192,11 @@ internal static class TrainingIconCounter
         int minY = hsvRegion.Rows;
         int maxX = -1;
         int maxY = -1;
+        double sumX = 0;
+        double sumY = 0;
+        double sumXX = 0;
+        double sumYY = 0;
+        double sumXY = 0;
 
         for (int y = 0; y < hsvRegion.Rows; y++)
         {
@@ -207,6 +213,11 @@ internal static class TrainingIconCounter
                 minY = Math.Min(minY, y);
                 maxX = Math.Max(maxX, x);
                 maxY = Math.Max(maxY, y);
+                sumX += x;
+                sumY += y;
+                sumXX += x * x;
+                sumYY += y * y;
+                sumXY += x * y;
             }
         }
 
@@ -230,7 +241,8 @@ internal static class TrainingIconCounter
         double centerTolerance = Math.Max(1.0, Math.Min(hsvRegion.Cols, hsvRegion.Rows) * 0.20);
 
         return Math.Abs(brightCenterX - regionCenterX) <= centerTolerance &&
-               Math.Abs(brightCenterY - regionCenterY) <= centerTolerance;
+               Math.Abs(brightCenterY - regionCenterY) <= centerTolerance &&
+               IsPixelCloudCompact(brightPixels, sumX, sumY, sumXX, sumYY, sumXY, maxElongation: 1.55);
     }
 
     private static bool LooksLikeColoredIconShape(Mat hsvRegion)
@@ -241,13 +253,18 @@ internal static class TrainingIconCounter
         int minY = hsvRegion.Rows;
         int maxX = -1;
         int maxY = -1;
+        double sumX = 0;
+        double sumY = 0;
+        double sumXX = 0;
+        double sumYY = 0;
+        double sumXY = 0;
 
         for (int y = 0; y < hsvRegion.Rows; y++)
         {
             for (int x = 0; x < hsvRegion.Cols; x++)
             {
                 Vec3b hsv = hsvRegion.At<Vec3b>(y, x);
-                if (hsv.Item1 <= 45 || hsv.Item2 <= 60)
+                if (hsv.Item1 <= 60 || hsv.Item2 <= 55)
                 {
                     continue;
                 }
@@ -257,6 +274,11 @@ internal static class TrainingIconCounter
                 minY = Math.Min(minY, y);
                 maxX = Math.Max(maxX, x);
                 maxY = Math.Max(maxY, y);
+                sumX += x;
+                sumY += y;
+                sumXX += x * x;
+                sumYY += y * y;
+                sumXY += x * y;
             }
         }
 
@@ -268,7 +290,52 @@ internal static class TrainingIconCounter
         int coloredWidth = maxX - minX + 1;
         int coloredHeight = maxY - minY + 1;
         double aspect = coloredWidth / (double)Math.Max(1, coloredHeight);
-        return aspect is >= 0.65 and <= 1.55;
+        if (aspect is < 0.65 or > 1.55)
+        {
+            return false;
+        }
+
+        double regionCenterX = (hsvRegion.Cols - 1) / 2.0;
+        double regionCenterY = (hsvRegion.Rows - 1) / 2.0;
+        double coloredCenterX = minX + (coloredWidth - 1) / 2.0;
+        double coloredCenterY = minY + (coloredHeight - 1) / 2.0;
+        double centerTolerance = Math.Max(1.0, Math.Min(hsvRegion.Cols, hsvRegion.Rows) * 0.20);
+
+        return Math.Abs(coloredCenterX - regionCenterX) <= centerTolerance &&
+               Math.Abs(coloredCenterY - regionCenterY) <= centerTolerance &&
+               IsPixelCloudCompact(coloredPixels, sumX, sumY, sumXX, sumYY, sumXY, maxElongation: 1.55);
+    }
+
+    private static bool IsPixelCloudCompact(
+        int pixels,
+        double sumX,
+        double sumY,
+        double sumXX,
+        double sumYY,
+        double sumXY,
+        double maxElongation)
+    {
+        if (pixels <= 1)
+        {
+            return false;
+        }
+
+        double meanX = sumX / pixels;
+        double meanY = sumY / pixels;
+        double varianceX = Math.Max(0, sumXX / pixels - meanX * meanX);
+        double varianceY = Math.Max(0, sumYY / pixels - meanY * meanY);
+        double covariance = sumXY / pixels - meanX * meanY;
+        double trace = varianceX + varianceY;
+        double discriminant = Math.Sqrt(Math.Max(0, (varianceX - varianceY) * (varianceX - varianceY) + 4 * covariance * covariance));
+        double major = (trace + discriminant) / 2;
+        double minor = (trace - discriminant) / 2;
+        if (minor <= 0)
+        {
+            return false;
+        }
+
+        double elongation = Math.Sqrt(major / minor);
+        return elongation <= maxElongation;
     }
 
     private static void DumpSlotRegion(

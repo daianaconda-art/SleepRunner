@@ -31,6 +31,16 @@ public class TradeStageOcrTests
     }
 
     [Fact]
+    public void LooksLikeTradeListText_accepts_trade_detail_items_from_latest_log()
+    {
+        string text = "训练书籍0体力训练的禁书训练的特训方式的书籍。据说大陆书店热卖中。经验值增加弗洛拉西瓜深渊炸物一";
+
+        bool looksLikeTradeList = InvokeLooksLikeTradeListText(text);
+
+        Assert.True(looksLikeTradeList);
+    }
+
+    [Fact]
     public void HasRowSoldOutStamp_returns_true_for_red_row_stamp()
     {
         using var screenshot = new Mat(new Size(2559, 1440), MatType.CV_8UC3, new Scalar(30, 45, 55));
@@ -39,6 +49,21 @@ public class TradeStageOcrTests
         bool soldOut = InvokeHasRowSoldOutStamp(screenshot, slotIndex: 0);
 
         Assert.True(soldOut);
+    }
+
+    [Fact]
+    public void HasRowSoldOutStamp_ignores_red_product_art_and_discount_price()
+    {
+        using var screenshot = new Mat(new Size(2559, 1440), MatType.CV_8UC3, new Scalar(30, 45, 55));
+
+        // Reproduces the hand-warmer row: red art and discount glyphs sit inside the broad
+        // row scan window, but they are not a sold-out stamp.
+        Cv2.Rectangle(screenshot, new Rect(2023, 867, 63, 74), new Scalar(20, 20, 210), -1);
+        Cv2.Rectangle(screenshot, new Rect(1919, 941, 12, 61), new Scalar(20, 20, 210), -1);
+
+        bool soldOut = InvokeHasRowSoldOutStamp(screenshot, slotIndex: 2);
+
+        Assert.False(soldOut);
     }
 
     [Fact]
@@ -72,6 +97,19 @@ public class TradeStageOcrTests
                             ?? throw new Xunit.Sdk.XunitException("TradeStageOcr.IsTradeScreen was not found.");
 
         return (bool)method.Invoke(null, [screenshot])!;
+    }
+
+    private static bool InvokeLooksLikeTradeListText(string text)
+    {
+        Type helperType = Type.GetType("SleepRunner.Automation.Race.Handlers.Trade.TradeStageOcr, SleepRunner")
+            ?? throw new Xunit.Sdk.XunitException("TradeStageOcr type was not found.");
+
+        MethodInfo method = helperType.GetMethod(
+                                "LooksLikeTradeListText",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("TradeStageOcr.LooksLikeTradeListText was not found.");
+
+        return (bool)method.Invoke(null, [text])!;
     }
 
     private static int InvokeScoreOptionText(string text, bool isTrade)

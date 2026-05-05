@@ -260,6 +260,10 @@ internal static class TradeStageOcr
                text.Contains("料理食物", StringComparison.Ordinal) ||
                text.Contains("沙拉", StringComparison.Ordinal) ||
                text.Contains("甜甜圈", StringComparison.Ordinal) ||
+               text.Contains("训练书籍", StringComparison.Ordinal) ||
+               text.Contains("训练的禁书", StringComparison.Ordinal) ||
+               text.Contains("弗洛拉西瓜", StringComparison.Ordinal) ||
+               text.Contains("深渊炸物", StringComparison.Ordinal) ||
                text.Contains("炖菜", StringComparison.Ordinal);
     }
 

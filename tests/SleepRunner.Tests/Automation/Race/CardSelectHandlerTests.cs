@@ -1,5 +1,7 @@
+using System.Reflection;
 using OpenCvSharp;
 using SleepRunner.Automation.Race.Handlers;
+using SleepRunner.Automation.Race.Policy;
 using SleepRunner.Vision;
 using Xunit;
 
@@ -41,6 +43,50 @@ public class CardSelectHandlerTests
                 ? "．选择奖励"
                 : "";
         }
+    }
+
+    [Fact]
+    public void Priority_order_uses_apocalypse_necklace_name_when_crit_damage_effect_is_ocr_truncated()
+    {
+        string originalCardsProfile = RaceProfileManager.CurrentCardsProfile;
+
+        try
+        {
+            RaceProfileManager.SetCardsProfile("crit_damage_first");
+            RaceUserPolicy.ForceReload();
+            var handler = new CardSelectHandler(ReadRegion);
+
+            int[] order = InvokeBuildPriorityAttemptOrder(
+                handler,
+                [
+                    "启示录新型项炼队员全体首次战斗开始时，自身的害增加5％。",
+                    "启示录新型帽子队员全体首次战斗开始时，自身的暴击率增加5％。",
+                    "启示录新型铠甲队员全体首次战斗开始时，自身的最大生命力增加4％。",
+                ]);
+
+            Assert.Equal([0, 1], order);
+        }
+        finally
+        {
+            RaceProfileManager.SetCardsProfile(originalCardsProfile);
+            RaceUserPolicy.ForceReload();
+        }
+
+        static string ReadRegion(Mat _, double x, double y, double w, double h) => "";
+    }
+
+    private static int[] InvokeBuildPriorityAttemptOrder(CardSelectHandler handler, string[] texts)
+    {
+        MethodInfo method = typeof(CardSelectHandler).GetMethod(
+                                "BuildPriorityAttemptOrder",
+                                BindingFlags.Instance | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("CardSelectHandler.BuildPriorityAttemptOrder was not found.");
+
+        object? result = method.Invoke(handler, [texts]);
+        Assert.NotNull(result);
+        return ((System.Collections.IEnumerable)result!)
+            .Cast<int>()
+            .ToArray();
     }
 
     private static bool IsRegion(

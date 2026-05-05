@@ -1035,6 +1035,45 @@
       ],
       "option_y_overrides": [0.650, 0.719],
       "note": "现场登记：2026-05-01 19:27:18 +08:00；截图 20260501_192718_manual.png；按用户要求默认选2。标题为阿尔克那事件“万物的价值”，当前时间为06月上旬。"
+    },
+    {
+      "id": "arkna_lifesaver",
+      "event_name": "救命恩人",
+      "category": "05月下旬（当前截图登记）",
+      "status": "confirmed",
+      "recommended_option": 1,
+      "options": [
+        { "index": 1, "keyword": "翻地的事就交给我吧。", "alias": ["翻地"] },
+        { "index": 2, "keyword": "搬土的事就交给我吧。", "alias": ["搬土"] }
+      ],
+      "option_y_overrides": [0.650, 0.719],
+      "note": "现场登记：2026-05-05；按用户截图要求默认选1。标题为阿尔克那事件“救命恩人”，当前时间为05月下旬。"
+    },
+    {
+      "id": "arkna_beyond_words",
+      "event_name": "超越语言的体验",
+      "category": "06月上旬（当前截图登记）",
+      "status": "confirmed",
+      "recommended_option": 2,
+      "options": [
+        { "index": 1, "keyword": "静静聆听两人的对话。", "alias": ["静静聆听", "两人的对话"] },
+        { "index": 2, "keyword": "泡一壶简单的茶。", "alias": ["泡一壶", "简单的茶"] }
+      ],
+      "option_y_overrides": [0.650, 0.719],
+      "note": "现场登记：2026-05-05；按用户截图要求默认选2。标题为阿尔克那事件“超越语言的体验”，当前时间为06月上旬。"
+    },
+    {
+      "id": "arkna_not_acrobat",
+      "event_name": "并非杂技师",
+      "category": "09月上旬（当前截图登记）",
+      "status": "confirmed",
+      "recommended_option": 1,
+      "options": [
+        { "index": 1, "keyword": "要继续贴广告牌吗？", "alias": ["继续贴广告牌", "广告牌"] },
+        { "index": 2, "keyword": "要休息一下再来吗？", "alias": ["休息一下再来", "休息一下"] }
+      ],
+      "option_y_overrides": [0.650, 0.719],
+      "note": "现场登记：2026-05-05；按用户截图要求默认选1。标题为阿尔克那事件“并非杂技师”，当前时间为09月上旬。"
     }
   ]
 }

@@ -226,6 +226,16 @@ internal static class TradeBuyActions
             bool grayDisabled = IsBuyButtonGrayDisabled(shot);
             bool purchasedState = IsPurchasedStateText(TradeDetailOcr.ReadSlotText(shot, target.SlotIndex));
             TradeBuyabilityState buyability = TradeInteractionPolicy.EvaluateBuyability(visibleBuy, grayDisabled, purchasedState);
+            int effectiveKnownBudget = knownBudget;
+            if (effectiveKnownBudget == int.MaxValue)
+            {
+                int refreshedBudget = TradeBudgetPolicy.ResolveExecutionBudget(TradeDetailOcr.ReadCurrentMoney(shot));
+                if (refreshedBudget != int.MaxValue)
+                {
+                    effectiveKnownBudget = refreshedBudget;
+                    Logger.Log($"[Race:Trade] Trade executor: refreshed pre-buy budget={effectiveKnownBudget} for slot {target.SlotIndex + 1}.");
+                }
+            }
 
             if (buyability != TradeBuyabilityState.Enabled)
             {
@@ -237,7 +247,7 @@ internal static class TradeBuyActions
             if (keySent)
             {
                 await ctx.Wait(450);
-                bool accepted = await VerifyBuyClickAcceptedAsync(ctx, target, knownBudget);
+                bool accepted = await VerifyBuyClickAcceptedAsync(ctx, target, effectiveKnownBudget);
                 Logger.Log($"[Race:Trade] Trade executor: buy key action sent, attempt={attempt}, accepted={accepted}");
                 if (accepted)
                     return true;
@@ -251,7 +261,7 @@ internal static class TradeBuyActions
             {
                 await ctx.ClickAtPercent(point.X, point.Y);
                 await ctx.Wait(450);
-                bool accepted = await VerifyBuyClickAcceptedAsync(ctx, target, knownBudget);
+                bool accepted = await VerifyBuyClickAcceptedAsync(ctx, target, effectiveKnownBudget);
                 Logger.Log($"[Race:Trade] Trade executor: buy fixed fallback clicked at ({point.X:F3},{point.Y:F3}), attempt={attempt}, accepted={accepted}");
                 if (accepted)
                     return true;

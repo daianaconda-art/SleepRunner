@@ -321,9 +321,30 @@ internal static class TradeDetailOcr
         Cv2.BitwiseAnd(combined, blueOk, combined);
 
         double redRatio = Cv2.CountNonZero(combined) / (double)(roi.Rows * roi.Cols);
+        bool hasStampShape = HasStampSizedRedComponent(combined, roi.Cols, roi.Rows);
         foreach (var channel in channels)
             channel.Dispose();
-        return redRatio >= 0.03;
+        return redRatio >= 0.12 || hasStampShape;
+    }
+
+    private static bool HasStampSizedRedComponent(Mat redMask, int width, int height)
+    {
+        using var closed = new Mat();
+        using var kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new OpenCvSharp.Size(9, 3));
+        Cv2.MorphologyEx(redMask, closed, MorphTypes.Close, kernel);
+        Cv2.FindContours(closed, out OpenCvSharp.Point[][] contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+
+        foreach (var contour in contours)
+        {
+            Rect rect = Cv2.BoundingRect(contour);
+            if (rect.Width >= width * 0.30 &&
+                rect.Height >= height * 0.18)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static (double X, double Y, double W, double H) ClampSlotTextRegion(

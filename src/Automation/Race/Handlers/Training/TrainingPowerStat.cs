@@ -378,6 +378,13 @@ internal static class TrainingPowerStat
         if (ocrValue.Value < 100 && pixelValue >= 100)
             return true;
 
+        if (pixelConfidence >= 0.90 &&
+            ocrValue.Value >= 100 &&
+            pixelValue >= 100 &&
+            DigitCount(pixelValue) == DigitCount(ocrValue.Value) + 1 &&
+            pixelValue.ToString().StartsWith(ocrValue.Value.ToString(), StringComparison.Ordinal))
+            return true;
+
         return pixelConfidence >= 0.90 &&
                pixelValue >= 100 &&
                DigitCount(pixelValue) == DigitCount(ocrValue.Value);
@@ -831,6 +838,22 @@ internal static class TrainingPowerStat
         if (IsOcrEngineDiagnostic(text)) return false;
 
         string normalized = NormalizeAttributePanelDigits(text);
+        var slashMatch = Regex.Match(normalized, @"(\d{1,4})\s*(?:/|\uFF0F)");
+        if (slashMatch.Success &&
+            int.TryParse(slashMatch.Groups[1].Value, out int slashCurrent) &&
+            slashCurrent >= 0 &&
+            slashCurrent <= maxValue)
+        {
+            value = slashCurrent;
+            score = slashCurrent.ToString().Length switch
+            {
+                >= 3 => 16,
+                2 => 12,
+                _ => 3,
+            };
+            return true;
+        }
+
         var matches = Regex.Matches(normalized, @"\d{1,4}")
             .Cast<Match>()
             .Select(m => m.Value)

@@ -237,25 +237,25 @@ public class CardSelectHandler : IRaceHandler
             return -1;
         }
 
-        if (text.Contains("鎵嬪", StringComparison.Ordinal))
+        if (text.Contains("手套", StringComparison.Ordinal))
         {
-            int rank = ResolveLabelRank("鏀诲嚮鍔?", "鏀诲嚮");
+            int rank = ResolveLabelRank("攻击力", "攻击");
             if (rank >= 0)
             {
                 return rank;
             }
         }
 
-        if (text.Contains("椤归摼", StringComparison.Ordinal) || text.Contains("椤圭偧", StringComparison.Ordinal))
+        if (text.Contains("项链", StringComparison.Ordinal) || text.Contains("项炼", StringComparison.Ordinal))
         {
-            int rank = ResolveLabelRank("鏆村嚮浼ゅ", "鐖嗕激");
+            int rank = ResolveLabelRank("暴击伤害", "爆伤");
             if (rank >= 0)
             {
                 return rank;
             }
         }
 
-        if (text.Contains("瑁ゅ瓙", StringComparison.Ordinal))
+        if (text.Contains("裤子", StringComparison.Ordinal))
         {
             return -1;
         }
@@ -267,14 +267,14 @@ public class CardSelectHandler : IRaceHandler
         }
 
         bool looksLikeAttack =
-            (text.Contains("鍙茶幈濮?", StringComparison.Ordinal) && text.Contains("鎵嬪", StringComparison.Ordinal)) ||
-            (text.Contains("鍚ず褰?", StringComparison.Ordinal) && text.Contains("鏂板瀷", StringComparison.Ordinal) && text.Contains("鎵嬪", StringComparison.Ordinal)) ||
-            (text.Contains("鑷韩鐨勫鍔?", StringComparison.Ordinal) && text.Contains("%", StringComparison.Ordinal) &&
-             !text.Contains("鏆村嚮浼ゅ", StringComparison.Ordinal) && !text.Contains("闃插尽鍔?", StringComparison.Ordinal));
+            (text.Contains("史莱姆", StringComparison.Ordinal) && text.Contains("手套", StringComparison.Ordinal)) ||
+            (text.Contains("启示录", StringComparison.Ordinal) && text.Contains("新型", StringComparison.Ordinal) && text.Contains("手套", StringComparison.Ordinal)) ||
+            (text.Contains("自身的增加", StringComparison.Ordinal) && text.Contains("%", StringComparison.Ordinal) &&
+             !text.Contains("暴击伤害", StringComparison.Ordinal) && !text.Contains("防御力", StringComparison.Ordinal));
 
         if (looksLikeAttack)
         {
-            int rank = ResolveLabelRank("鏀诲嚮鍔?", "鏀诲嚮");
+            int rank = ResolveLabelRank("攻击力", "攻击");
             if (rank >= 0)
             {
                 return rank;
