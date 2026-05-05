@@ -106,16 +106,18 @@ internal static class TradeStageGeometry
 
         int score = 0;
         bool hasTrade = TradeStageOcr.ContainsTradeKeyword(text);
+        bool hasTradeHint = TradeStageOcr.ContainsTradeStageHint(text);
         bool hasProgress = TradeStageOcr.ContainsProgressBranchKeyword(text);
         if (isTrade)
         {
             if (hasTrade) score += 8;
+            if (hasTradeHint) score += 6;
             if (hasProgress) score -= 5;
         }
         else
         {
             if (hasProgress) score += 8;
-            if (hasTrade) score -= 5;
+            if (hasTrade || hasTradeHint) score -= 5;
         }
 
         if (text.Contains("购买", StringComparison.Ordinal) ||

@@ -88,6 +88,8 @@ public class WarmUiShellTests
             Control heroHost = WinFormsTestHost.ReadPrivateField<Control>(window, "_heroHost");
             Control status = WinFormsTestHost.ReadPrivateField<Control>(window, "_status");
             Control actions = WinFormsTestHost.ReadPrivateField<Control>(window, "_actions");
+            Control sectionKeyLog = WinFormsTestHost.ReadPrivateField<Control>(window, "_sectionKeyLog");
+            Control keyLog = WinFormsTestHost.ReadPrivateField<Control>(window, "_keyLog");
             Control sectionTuning = WinFormsTestHost.ReadPrivateField<Control>(window, "_sectionTuning");
 
             Assert.False(heroCardBounds.IsEmpty);
@@ -101,7 +103,9 @@ public class WarmUiShellTests
             Assert.True(heroHost.ClientRectangle.Contains(actions.Bounds), $"Hero host {heroHost.ClientRectangle} did not contain actions {actions.Bounds}.");
             Assert.True(Math.Abs(status.Top - actions.Top) <= 12, $"Expected status/actions top alignment within 12px, got status={status.Top}, actions={actions.Top}.");
             Assert.True(status.Right + 12 <= actions.Left, $"Expected at least 12px between status and actions, got status.Right={status.Right}, actions.Left={actions.Left}.");
-            Assert.Equal(heroCardBounds.Bottom + 18, sectionTuning.Top);
+            Assert.Equal(heroCardBounds.Bottom + 18, sectionKeyLog.Top);
+            Assert.Equal(sectionKeyLog.Bottom + 8, keyLog.Top);
+            Assert.Equal(keyLog.Bottom + 14, sectionTuning.Top);
         });
     }
 

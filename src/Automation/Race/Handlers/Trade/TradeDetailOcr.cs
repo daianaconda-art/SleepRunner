@@ -259,6 +259,11 @@ internal static class TradeDetailOcr
     {
         foreach (var r in GetRowSoldOutRegions(slotIndex))
         {
+            var rect = ToPixelRect(screenshot, r.X, r.Y, r.W, r.H);
+            using var roi = new Mat(screenshot, rect);
+            if (LooksLikeSoldOutStamp(roi))
+                return true;
+
             string raw = OcrHelper.RecognizeRegion(screenshot, r.X, r.Y, r.W, r.H).GetAwaiter().GetResult();
             string text = TradeStageOcr.NormalizeOcr(raw);
             if (text.Contains("SOLD", StringComparison.OrdinalIgnoreCase) ||
@@ -268,7 +273,15 @@ internal static class TradeDetailOcr
             {
                 return true;
             }
+        }
 
+        return false;
+    }
+
+    public static bool HasRowSoldOutStamp(Mat screenshot, int slotIndex)
+    {
+        foreach (var r in GetRowSoldOutRegions(slotIndex))
+        {
             var rect = ToPixelRect(screenshot, r.X, r.Y, r.W, r.H);
             using var roi = new Mat(screenshot, rect);
             if (LooksLikeSoldOutStamp(roi))
@@ -374,6 +387,12 @@ internal static class TradeDetailOcr
     /// </summary>
     public static int ReadOfferPrice(Mat screenshot, int slotIndex, string slotText)
     {
+        if (TryReadTrustedRowPrice(slotText, out int trustedRowPrice))
+        {
+            Logger.Log($"[Race:Trade] Trade price[{slotIndex + 1}]: {trustedRowPrice} from row-fast text='{slotText}'");
+            return trustedRowPrice;
+        }
+
         PriceCandidate? bestCandidate = null;
         var detailSamples = new List<string>();
         var slotPriceSamples = new List<string>();
@@ -426,6 +445,21 @@ internal static class TradeDetailOcr
         }
 
         return bestCandidate?.Value ?? 0;
+    }
+
+    public static bool TryReadTrustedRowPrice(string rowText, out int price)
+    {
+        price = 0;
+        string normalized = TradeStageOcr.NormalizeOcr(rowText);
+        if (!IsReliableSlotText(normalized) || LooksLikeContaminatedSlotText(normalized))
+            return false;
+
+        int candidate = ExtractPrice(normalized);
+        if (candidate < 10 || candidate > 199)
+            return false;
+
+        price = candidate;
+        return true;
     }
 
     public static PriceCandidate? PickBetterPriceCandidate(PriceCandidate? current, PriceCandidate candidate)

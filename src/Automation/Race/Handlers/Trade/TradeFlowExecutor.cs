@@ -224,10 +224,18 @@ public sealed class DefaultTradeFlowExecutor : ITradeFlowExecutor
                 var current = ctx.CaptureScreen();
                 if (current != null && !current.Empty())
                 {
-                    bool currentReady = TradeBuyActions.IsOfferDetailReady(current);
                     string currentRowText = TradeDetailOcr.ReadRowSlotText(current, slotIndex);
+                    bool currentRowSoldOut = TradeDetailOcr.HasRowSoldOutStamp(current, slotIndex);
+                    var soldOutOffer = TradePurchasePolicy.TryBuildSoldOutRowFallback(slotIndex, currentRowText, currentRowSoldOut);
+                    if (soldOutOffer != null)
+                    {
+                        current.Dispose();
+                        return soldOutOffer;
+                    }
+
+                    bool currentReady = TradeBuyActions.IsOfferDetailReady(current);
                     string currentDetailTitle = TradeDetailOcr.ReadDetailTitleText(current);
-                    bool currentOwned = currentReady && TradeBuyActions.IsCurrentDetailOwnedBySlot(current, slotIndex);
+                    bool currentOwned = currentReady && TradeSlotOwnershipPolicy.BelongsToSlot(currentRowText, currentDetailTitle);
                     Logger.Log(
                         $"[Race:Trade] Trade offer[{slotIndex + 1}]: current precheck ready={currentReady}, owned={currentOwned}, " +
                         $"row='{currentRowText}', detail='{currentDetailTitle}', attempt={attempt}.");
@@ -280,8 +288,18 @@ public sealed class DefaultTradeFlowExecutor : ITradeFlowExecutor
                     continue;
                 }
 
-                bool detailOwnedBySlot = TradeBuyActions.IsCurrentDetailOwnedBySlot(detailShot, slotIndex);
-                var offer = TradePurchasePolicy.BuildOfferFromShot(detailShot, slotIndex);
+                string detailRowText = TradeDetailOcr.ReadRowSlotText(detailShot, slotIndex);
+                string detailTitle = TradeDetailOcr.ReadDetailTitleText(detailShot);
+                bool detailOwnedBySlot = TradeSlotOwnershipPolicy.BelongsToSlot(detailRowText, detailTitle);
+                if (ShouldDeferUnownedDetailScan(detailOwnedBySlot, attempt, maxAttempts))
+                {
+                    Logger.Log($"[Race:Trade] Trade offer[{slotIndex + 1}]: opened detail belongs to another slot (attempt={attempt}), retry before full detail OCR.");
+                    detailMayAlreadyBeOpen = false;
+                    await ctx.Wait(200);
+                    continue;
+                }
+
+                var offer = TradePurchasePolicy.BuildOfferFromShot(detailShot, slotIndex, detailRowText, detailTitle);
                 bool strongUnownedDetail = !detailOwnedBySlot && TradePurchasePolicy.IsStrongDetailPurchaseCandidate(offer);
                 if (!detailOwnedBySlot && !strongUnownedDetail)
                 {
@@ -291,11 +309,9 @@ public sealed class DefaultTradeFlowExecutor : ITradeFlowExecutor
 
                 if (strongUnownedDetail)
                 {
-                    string rowText = TradeDetailOcr.ReadRowSlotText(detailShot, slotIndex);
-                    string detailTitle = TradeDetailOcr.ReadDetailTitleText(detailShot);
                     Logger.Log(
                         $"[Race:Trade] Trade offer[{slotIndex + 1}]: ownership uncertain but strong detail signal accepted " +
-                        $"(row='{rowText}', detail='{detailTitle}', price={offer.Price}, effect='{offer.EffectText}').");
+                        $"(row='{detailRowText}', detail='{detailTitle}', price={offer.Price}, effect='{offer.EffectText}').");
                 }
 
                 if (TradePurchasePolicy.IsOfferReadable(offer))
@@ -314,6 +330,11 @@ public sealed class DefaultTradeFlowExecutor : ITradeFlowExecutor
         }
 
         return null;
+    }
+
+    private static bool ShouldDeferUnownedDetailScan(bool detailOwnedBySlot, int attempt, int maxAttempts)
+    {
+        return !detailOwnedBySlot && attempt < maxAttempts;
     }
 
     private static async Task<TradeOffer?> RefreshOfferForBuyabilityAsync(

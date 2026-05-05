@@ -123,4 +123,16 @@ internal static class CommissionOcrRegions
             .GetResult();
         return NormalizeOcr(raw);
     }
+
+    public static string ReadCommissionFallbackText(Mat screenshot)
+    {
+        var texts = new List<string>
+        {
+            ReadBestText(screenshot, AppraiseDetailRegions),
+            ReadBestText(screenshot, CommissionCurrentTitleRegions),
+            ReadBestText(screenshot, CommissionCurrentTierRegions),
+        };
+
+        return string.Join("|", texts.Where(static text => !string.IsNullOrEmpty(text)).Distinct());
+    }
 }

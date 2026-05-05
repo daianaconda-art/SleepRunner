@@ -69,6 +69,8 @@ public sealed class RaceMainWindow : Form
     private ProfilesStrip _profiles = null!;
     private TrainingRulesStrip _trainingRules = null!;
     private FilesStrip _files = null!;
+    private KeyLogStrip _keyLog = null!;
+    private SectionHeader _sectionKeyLog = null!;
     private SectionHeader _sectionTuning = null!;
     private SectionHeader _sectionProfiles = null!;
     private SectionHeader _sectionTrainingRules = null!;
@@ -85,6 +87,7 @@ public sealed class RaceMainWindow : Form
     private IntPtr _automationKeyboardHook;
     private LowLevelKeyboardProc? _automationKeyboardHookProc;
     private bool _automationHotkeyPressed;
+    private bool _loggerSubscribed;
 
     // 可空：OnResize 在 ctor 早期就可能被调用（设置 ClientSize 时），
     // 那一刻这个 timer 还未创建；用 null 表达"尚未就绪"
@@ -130,6 +133,8 @@ public sealed class RaceMainWindow : Form
 
         _controller.StateChanged += OnControllerStateChanged;
         _controller.ActivityChanged += OnActivityChanged;
+        Logger.OnLog += OnLoggerLog;
+        _loggerSubscribed = true;
         RaceConfig.Changed += ScheduleSave;
         Move += (_, _) => ScheduleSave();
         FormClosing += OnFormClosing;
@@ -282,7 +287,9 @@ public sealed class RaceMainWindow : Form
     {
         var screen = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
         // 估算高度，真实高度在 BuildLayout 末尾会按内容收紧
-        int estimatedHeight = TitleBarHeight + GapAfterTitle + HeroCardHeight + GapAfterHero + SectionHeader.RowHeight + GapAfterSection + RaceConfigStrip.CardHeight + GapAfterConfig
+        int estimatedHeight = TitleBarHeight + GapAfterTitle + HeroCardHeight + GapAfterHero
+                              + SectionHeader.RowHeight + GapAfterSection + KeyLogStrip.CardHeight + GapAfterConfig
+                              + SectionHeader.RowHeight + GapAfterSection + RaceConfigStrip.CardHeight + GapAfterConfig
                               + SectionHeader.RowHeight + GapAfterSection + ProfilesStrip.CardHeight + GapAfterConfig
                               + SectionHeader.RowHeight + GapAfterSection + TrainingRulesStrip.CardHeight + GapAfterConfig
                               + SectionHeader.RowHeight + GapAfterSection + FilesStrip.CardHeight + GapAfterConfig
@@ -341,6 +348,12 @@ public sealed class RaceMainWindow : Form
         _actions.StartClicked += OnStartClicked;
         _actions.StopClicked += OnStopClicked;
         _heroHost.Controls.Add(_actions);
+
+        _sectionKeyLog = new SectionHeader("关键日志");
+        Controls.Add(_sectionKeyLog);
+
+        _keyLog = new KeyLogStrip();
+        Controls.Add(_keyLog);
 
         // 分组标题 + 配置卡片
         _sectionTuning = new SectionHeader(UiText.Sections.Tuning);
@@ -437,6 +450,12 @@ public sealed class RaceMainWindow : Form
             LayoutHeroChildren();
         }
         y = _heroCardBounds.Bottom + GapAfterHero;
+
+        _sectionKeyLog.SetBounds(PadX + 2, y, innerWidth - 4, SectionHeader.RowHeight);
+        y += SectionHeader.RowHeight + GapAfterSection;
+
+        _keyLog.SetBounds(PadX, y, innerWidth, KeyLogStrip.CardHeight);
+        y += _keyLog.Height + GapAfterConfig;
 
         _sectionTuning.SetBounds(PadX + 2, y, innerWidth - 4, SectionHeader.RowHeight);
         y += SectionHeader.RowHeight + GapAfterSection;
@@ -900,6 +919,37 @@ public sealed class RaceMainWindow : Form
             _status.SetActivity(text);
     }
 
+    private void OnLoggerLog(string line)
+    {
+        if (IsDisposed || _keyLog is null)
+        {
+            return;
+        }
+
+        if (InvokeRequired)
+        {
+            try
+            {
+                BeginInvoke(new Action(() => AppendKeyLogLine(line)));
+            }
+            catch (InvalidOperationException)
+            {
+            }
+
+            return;
+        }
+
+        AppendKeyLogLine(line);
+    }
+
+    private void AppendKeyLogLine(string line)
+    {
+        if (!IsDisposed && _keyLog is not null)
+        {
+            _keyLog.TryAppendFromLogLine(line);
+        }
+    }
+
     private void ApplyState(RaceState state)
     {
         _status.ApplyState(state);
@@ -954,10 +1004,22 @@ public sealed class RaceMainWindow : Form
         _settings.Save();
     }
 
+    private void UnsubscribeLogger()
+    {
+        if (!_loggerSubscribed)
+        {
+            return;
+        }
+
+        Logger.OnLog -= OnLoggerLog;
+        _loggerSubscribed = false;
+    }
+
     private async void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
         _controller.StateChanged -= OnControllerStateChanged;
         _controller.ActivityChanged -= OnActivityChanged;
+        UnsubscribeLogger();
         RaceConfig.Changed -= ScheduleSave;
         _saveDebounce?.Stop();
         SaveSettingsFromUi();
@@ -974,5 +1036,15 @@ public sealed class RaceMainWindow : Form
         {
             _controller.Dispose();
         }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            UnsubscribeLogger();
+        }
+
+        base.Dispose(disposing);
     }
 }

@@ -80,6 +80,55 @@ public class TradeBuyActionsTests
     }
 
     [Fact]
+    public void ScanOfferWithRetriesAsync_checks_sold_out_row_before_building_detail_offer()
+    {
+        MethodInfo moveNext = GetAsyncMoveNext(
+            "SleepRunner.Automation.Race.Handlers.Trade.DefaultTradeFlowExecutor",
+            "ScanOfferWithRetriesAsync");
+        MethodBase[] calls = GetCalledMethods(moveNext).ToArray();
+
+        int soldOutFallbackIndex = Array.FindIndex(calls, IsTryBuildSoldOutRowFallback);
+        int buildIndex = Array.FindIndex(calls, IsBuildOfferFromShot);
+
+        Assert.True(
+            soldOutFallbackIndex >= 0,
+            "ScanOfferWithRetriesAsync should check whether a sold-out row can be resolved before running full detail OCR.");
+        Assert.True(
+            buildIndex > soldOutFallbackIndex,
+            "Sold-out row fallback should run before TradePurchasePolicy.BuildOfferFromShot so sold-out items skip expensive detail OCR.");
+    }
+
+    [Fact]
+    public void ScanOfferWithRetriesAsync_defers_unowned_detail_before_building_detail_offer()
+    {
+        MethodInfo moveNext = GetAsyncMoveNext(
+            "SleepRunner.Automation.Race.Handlers.Trade.DefaultTradeFlowExecutor",
+            "ScanOfferWithRetriesAsync");
+        MethodBase[] calls = GetCalledMethods(moveNext).ToArray();
+
+        int deferIndex = Array.FindIndex(calls, IsShouldDeferUnownedDetailScan);
+        int buildIndex = Array.FindIndex(calls, IsBuildOfferFromShot);
+
+        Assert.True(
+            deferIndex >= 0,
+            "ScanOfferWithRetriesAsync should defer full detail OCR when the opened detail is not yet owned by the requested slot.");
+        Assert.True(
+            buildIndex > deferIndex,
+            "The unowned-detail defer check should happen before TradePurchasePolicy.BuildOfferFromShot.");
+    }
+
+    [Fact]
+    public void ScanOfferWithRetriesAsync_builds_offer_with_cached_row_and_detail_text()
+    {
+        MethodInfo moveNext = GetAsyncMoveNext(
+            "SleepRunner.Automation.Race.Handlers.Trade.DefaultTradeFlowExecutor",
+            "ScanOfferWithRetriesAsync");
+        MethodBase[] calls = GetCalledMethods(moveNext).ToArray();
+
+        Assert.Contains(calls, IsBuildOfferFromShotWithCachedText);
+    }
+
+    [Fact]
     public void GetBuyFallbackClickPoints_uses_fixed_buy_button_click_points()
     {
         IReadOnlyList<(double X, double Y)> points = InvokeGetBuyFallbackClickPoints();
@@ -226,6 +275,27 @@ public class TradeBuyActionsTests
     {
         return method.Name == "BuildOfferFromShot" &&
                method.DeclaringType?.FullName == "SleepRunner.Automation.Race.Handlers.Trade.TradePurchasePolicy";
+    }
+
+    private static bool IsBuildOfferFromShotWithCachedText(MethodBase method)
+    {
+        return method.Name == "BuildOfferFromShot" &&
+               method.DeclaringType?.FullName == "SleepRunner.Automation.Race.Handlers.Trade.TradePurchasePolicy" &&
+               method.GetParameters() is { Length: 4 } parameters &&
+               parameters[2].ParameterType == typeof(string) &&
+               parameters[3].ParameterType == typeof(string);
+    }
+
+    private static bool IsTryBuildSoldOutRowFallback(MethodBase method)
+    {
+        return method.Name == "TryBuildSoldOutRowFallback" &&
+               method.DeclaringType?.FullName == "SleepRunner.Automation.Race.Handlers.Trade.TradePurchasePolicy";
+    }
+
+    private static bool IsShouldDeferUnownedDetailScan(MethodBase method)
+    {
+        return method.Name == "ShouldDeferUnownedDetailScan" &&
+               method.DeclaringType?.FullName == "SleepRunner.Automation.Race.Handlers.Trade.DefaultTradeFlowExecutor";
     }
 
     private static IReadOnlyList<(double X, double Y)> InvokeGetBuyFallbackClickPoints()

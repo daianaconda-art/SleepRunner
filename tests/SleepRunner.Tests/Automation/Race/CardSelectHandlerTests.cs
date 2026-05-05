@@ -25,6 +25,24 @@ public class CardSelectHandlerTests
         }
     }
 
+    [Fact]
+    public void CanHandle_returns_true_when_reward_marker_is_visible_in_zero_origin_region()
+    {
+        using var screenshot = new Mat(new Size(1280, 720), MatType.CV_8UC3, new Scalar(18, 18, 18));
+        var handler = new CardSelectHandler(ReadRegion);
+
+        bool canHandle = handler.CanHandle(new FrameContext(screenshot));
+
+        Assert.True(canHandle);
+
+        static string ReadRegion(Mat _, double x, double y, double w, double h)
+        {
+            return IsRegion(x, y, w, h, 0.00, 0.00, 0.26, 0.12)
+                ? "．选择奖励"
+                : "";
+        }
+    }
+
     private static bool IsRegion(
         double actualX,
         double actualY,

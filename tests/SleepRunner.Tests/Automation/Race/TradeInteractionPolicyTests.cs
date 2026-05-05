@@ -49,6 +49,17 @@ public class TradeInteractionPolicyTests
         Assert.Equal("Disabled", state);
     }
 
+    [Fact]
+    public void EvaluateBuyability_treats_enabled_buy_button_as_buyable_even_when_sold_out_marker_is_noisy()
+    {
+        string state = InvokeBuyabilityState(
+            visibleBuy: true,
+            grayDisabled: false,
+            purchasedState: true);
+
+        Assert.Equal("Enabled", state);
+    }
+
     private static bool InvokePurchaseAccepted(
         string beforeSlotText,
         bool hasConfirmSignal,

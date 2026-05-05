@@ -3,13 +3,6 @@ using SleepRunner.Utils;
 
 namespace SleepRunner.Automation.Race.Handlers.Training;
 
-/// <summary>
-/// 训练页右侧 5 行的圆形图标计数 + 基调优先级决策
-///
-/// 拆分意图：
-/// - HSV 阈值是反复试出来的"魔法数"，集中在这里方便调
-/// - ApplyPriorityRule 是纯决策函数，单元测试也容易
-/// </summary>
 internal static class TrainingIconCounter
 {
     public const double IconCenterX = 0.73;
@@ -18,19 +11,27 @@ internal static class TrainingIconCounter
     public const int MaxIconSlots = 8;
     public const double IconCheckRadius = 0.015;
 
-    /// <summary>
-    /// 调试开关：true 时把每个 slot 的取样区域落盘到 assets/screenshots/debug_icons/，
-    /// 便于阈值标定（每次扫描会产生 ~5 张小图，正常使用建议关掉）
-    /// </summary>
     public static bool DebugDumpEnabled = false;
 
-    /// <summary>
-    /// 通过分析固定位置的像素亮度、饱和度、颜色方差来计数圆形图标
-    /// </summary>
-    /// <param name="rowLabel">可选的训练行名，仅用于日志/落盘文件名标识，不影响判定</param>
+    private enum SlotVerdict
+    {
+        Icon,
+        Ambiguous,
+        Empty,
+    }
+
+    private readonly record struct SlotScan(
+        int Slot,
+        double SlotY,
+        double SatMean,
+        double ValMean,
+        double SatStd,
+        double ValStd,
+        SlotVerdict Verdict,
+        string Path);
+
     public static int CountCircularIcons(Mat screenshot, string? rowLabel = null)
     {
-        int count = 0;
         int w = screenshot.Width;
         int h = screenshot.Height;
 
@@ -39,6 +40,7 @@ internal static class TrainingIconCounter
 
         int checkSize = Math.Max(1, (int)(w * IconCheckRadius));
         string labelPrefix = string.IsNullOrEmpty(rowLabel) ? "" : $"[{rowLabel}] ";
+        var scans = new List<SlotScan>(MaxIconSlots);
 
         for (int slot = 0; slot < MaxIconSlots; slot++)
         {
@@ -51,49 +53,137 @@ internal static class TrainingIconCounter
             int x2 = Math.Min(w, cx + checkSize);
             int y2 = Math.Min(h, cy + checkSize);
 
-            if (x2 <= x1 || y2 <= y1) break;
-
-            using var region = new Mat(hsv, new Rect(x1, y1, x2 - x1, y2 - y1));
-            Cv2.MeanStdDev(region, out var mean, out var stddev);
-
-            double satMean = mean[1];
-            double valMean = mean[2];
-            double satStd = stddev[1];
-            double valStd = stddev[2];
-
-            // 彩色路径：力量行竖条误检约 satStd 33~34.5，用 >35 去掉；
-            // 韧性第三格真头像约 38，必须保留（勿改回 39）
-            bool colorIcon = satMean > 40 && valMean > 70 && satStd > 25;
-            if (colorIcon)
+            if (x2 <= x1 || y2 <= y1)
             {
-                if (satMean < 75)
-                    colorIcon = satStd > 35;
-                else
-                    colorIcon = satStd > 40;
+                break;
             }
 
-            // 灰色/高亮立绘：valMean≈135 的真头像 valStd 通常 ≥46（实测 46.4 / 73.6），
-            // 而行高亮/分隔线误判 valStd 仅 ~22-23；阈值收紧到 30 既切误判又不动真样本
-            bool grayIcon = valMean > 135 && valStd > 30;
-            if (grayIcon)
-                grayIcon = LooksLikeGrayIconShape(region);
+            using var region = new Mat(hsv, new Rect(x1, y1, x2 - x1, y2 - y1));
+            SlotScan scan = ScanSlot(region, slot, slotY);
+            scans.Add(scan);
 
-            bool hasIcon = colorIcon || grayIcon;
-            string path = hasIcon ? (colorIcon ? "color" : "gray") : "none";
+            string verdict = scan.Verdict switch
+            {
+                SlotVerdict.Icon => "ICON",
+                SlotVerdict.Ambiguous => "ambiguous",
+                _ => "empty",
+            };
 
-            Logger.Log($"[Race:TrainingSelect] {labelPrefix}Slot {slot}: y={slotY:F3} satMean={satMean:F1} valMean={valMean:F1} satStd={satStd:F1} valStd={valStd:F1} => {(hasIcon ? "ICON" : "empty")} ({path})");
+            Logger.Log($"[Race:TrainingSelect] {labelPrefix}Slot {slot}: y={scan.SlotY:F3} satMean={scan.SatMean:F1} valMean={scan.ValMean:F1} satStd={scan.SatStd:F1} valStd={scan.ValStd:F1} => {verdict} ({scan.Path})");
 
             if (DebugDumpEnabled)
-                DumpSlotRegion(screenshot, x1, y1, x2 - x1, y2 - y1, rowLabel, slot, hasIcon, satMean, valMean, satStd, valStd);
-
-            if (hasIcon) count++;
-            else break;
+            {
+                DumpSlotRegion(
+                    screenshot,
+                    x1,
+                    y1,
+                    x2 - x1,
+                    y2 - y1,
+                    rowLabel,
+                    slot,
+                    scan.Verdict != SlotVerdict.Empty,
+                    scan.SatMean,
+                    scan.ValMean,
+                    scan.SatStd,
+                    scan.ValStd);
+            }
         }
 
+        return SummarizeScans(scans, labelPrefix);
+    }
+
+    private static SlotScan ScanSlot(Mat hsvRegion, int slot, double slotY)
+    {
+        Cv2.MeanStdDev(hsvRegion, out var mean, out var stddev);
+
+        double satMean = mean[1];
+        double valMean = mean[2];
+        double satStd = stddev[1];
+        double valStd = stddev[2];
+
+        bool colorIcon = satMean > 40 && valMean > 70 && satStd > 25 && valStd > 30;
+        if (colorIcon)
+        {
+            colorIcon = satMean < 75
+                ? satStd > 35
+                : satStd > 40;
+        }
+
+        bool grayIcon = valMean > 135 && valStd > 30;
+        if (grayIcon)
+        {
+            grayIcon = LooksLikeGrayIconShape(hsvRegion, valueThreshold: 150);
+        }
+
+        if (colorIcon)
+        {
+            return new SlotScan(slot, slotY, satMean, valMean, satStd, valStd, SlotVerdict.Icon, "color");
+        }
+
+        if (grayIcon)
+        {
+            return new SlotScan(slot, slotY, satMean, valMean, satStd, valStd, SlotVerdict.Icon, "gray");
+        }
+
+        if (LooksLikeRecoverableMiss(hsvRegion, satMean, valMean, satStd, valStd))
+        {
+            return new SlotScan(slot, slotY, satMean, valMean, satStd, valStd, SlotVerdict.Ambiguous, "recoverable");
+        }
+
+        return new SlotScan(slot, slotY, satMean, valMean, satStd, valStd, SlotVerdict.Empty, "none");
+    }
+
+    private static int SummarizeScans(IReadOnlyList<SlotScan> scans, string labelPrefix)
+    {
+        int lastCountedSlot = -1;
+        int consecutiveNonIcons = 0;
+
+        foreach (SlotScan scan in scans)
+        {
+            if (scan.Verdict == SlotVerdict.Icon)
+            {
+                lastCountedSlot = scan.Slot;
+                consecutiveNonIcons = 0;
+                continue;
+            }
+
+            consecutiveNonIcons++;
+            if (consecutiveNonIcons >= 2)
+            {
+                break;
+            }
+        }
+
+        int count = lastCountedSlot >= 0 ? lastCountedSlot + 1 : 0;
+        string verdicts = string.Join("", scans.Select(s => s.Verdict switch
+        {
+            SlotVerdict.Icon => "I",
+            SlotVerdict.Ambiguous => "A",
+            _ => "_",
+        }));
+        Logger.Log($"[Race:TrainingSelect] {labelPrefix}Slot summary: verdicts={verdicts}, count={count}");
         return count;
     }
 
-    private static bool LooksLikeGrayIconShape(Mat hsvRegion)
+    private static bool LooksLikeRecoverableMiss(
+        Mat hsvRegion,
+        double satMean,
+        double valMean,
+        double satStd,
+        double valStd)
+    {
+        if (valMean > 55 && valStd > 24 && LooksLikeGrayIconShape(hsvRegion, valueThreshold: 145))
+        {
+            return true;
+        }
+
+        return satMean > 34 &&
+               valMean > 60 &&
+               satStd > 18 &&
+               LooksLikeColoredIconShape(hsvRegion);
+    }
+
+    private static bool LooksLikeGrayIconShape(Mat hsvRegion, int valueThreshold)
     {
         int area = Math.Max(1, hsvRegion.Rows * hsvRegion.Cols);
         int brightPixels = 0;
@@ -107,8 +197,10 @@ internal static class TrainingIconCounter
             for (int x = 0; x < hsvRegion.Cols; x++)
             {
                 Vec3b hsv = hsvRegion.At<Vec3b>(y, x);
-                if (hsv.Item2 <= 150)
+                if (hsv.Item2 <= valueThreshold)
+                {
                     continue;
+                }
 
                 brightPixels++;
                 minX = Math.Min(minX, x);
@@ -119,13 +211,17 @@ internal static class TrainingIconCounter
         }
 
         if (brightPixels < area * 0.18 || maxX < minX || maxY < minY)
+        {
             return false;
+        }
 
         int brightWidth = maxX - minX + 1;
         int brightHeight = maxY - minY + 1;
         double aspect = brightWidth / (double)Math.Max(1, brightHeight);
         if (aspect is < 0.65 or > 1.55)
+        {
             return false;
+        }
 
         double regionCenterX = (hsvRegion.Cols - 1) / 2.0;
         double regionCenterY = (hsvRegion.Rows - 1) / 2.0;
@@ -137,12 +233,57 @@ internal static class TrainingIconCounter
                Math.Abs(brightCenterY - regionCenterY) <= centerTolerance;
     }
 
-    /// <summary>
-    /// 把单个 slot 的 BGR 取样区域落盘，文件名带 ICON/empty + HSV 统计，便于事后核对
-    /// 失败静默忽略，绝不影响主流程
-    /// </summary>
-    private static void DumpSlotRegion(Mat screenshotBgr, int x, int y, int w, int h,
-        string? rowLabel, int slot, bool hasIcon, double satMean, double valMean, double satStd, double valStd)
+    private static bool LooksLikeColoredIconShape(Mat hsvRegion)
+    {
+        int area = Math.Max(1, hsvRegion.Rows * hsvRegion.Cols);
+        int coloredPixels = 0;
+        int minX = hsvRegion.Cols;
+        int minY = hsvRegion.Rows;
+        int maxX = -1;
+        int maxY = -1;
+
+        for (int y = 0; y < hsvRegion.Rows; y++)
+        {
+            for (int x = 0; x < hsvRegion.Cols; x++)
+            {
+                Vec3b hsv = hsvRegion.At<Vec3b>(y, x);
+                if (hsv.Item1 <= 45 || hsv.Item2 <= 60)
+                {
+                    continue;
+                }
+
+                coloredPixels++;
+                minX = Math.Min(minX, x);
+                minY = Math.Min(minY, y);
+                maxX = Math.Max(maxX, x);
+                maxY = Math.Max(maxY, y);
+            }
+        }
+
+        if (coloredPixels < area * 0.12 || maxX < minX || maxY < minY)
+        {
+            return false;
+        }
+
+        int coloredWidth = maxX - minX + 1;
+        int coloredHeight = maxY - minY + 1;
+        double aspect = coloredWidth / (double)Math.Max(1, coloredHeight);
+        return aspect is >= 0.65 and <= 1.55;
+    }
+
+    private static void DumpSlotRegion(
+        Mat screenshotBgr,
+        int x,
+        int y,
+        int w,
+        int h,
+        string? rowLabel,
+        int slot,
+        bool hasIcon,
+        double satMean,
+        double valMean,
+        double satStd,
+        double valStd)
     {
         try
         {
@@ -159,7 +300,6 @@ internal static class TrainingIconCounter
         }
         catch
         {
-            // 调试落盘失败不能影响识别本身
         }
     }
 
@@ -169,23 +309,24 @@ internal static class TrainingIconCounter
         return new string(chars).Trim('_');
     }
 
-    /// <summary>
-    /// 集中/保护任一项 ≥4 时择优；否则前三项中取图标最多者
-    /// 并列时按基调：攻击 力量→体力→韧性，生存 韧性→体力→力量
-    /// </summary>
     public static int ApplyPriorityRule(int[] counts, BuildDirection buildDirection)
     {
         if (counts[3] >= 4 || counts[4] >= 4)
         {
             int special = counts[3] >= counts[4] ? 3 : 4;
-            Logger.Log($"[Race:TrainingSelect] ApplyPriorityRule: special row {special + 1} has {counts[special]} icons (>=4), choosing between 集中/保护");
+            Logger.Log($"[Race:TrainingSelect] ApplyPriorityRule: special row {special + 1} has {counts[special]} icons (>=4)");
             return special;
         }
 
         int bestCount = Math.Max(counts[0], Math.Max(counts[1], counts[2]));
         var tied = new List<int>(3);
         for (int i = 0; i < 3; i++)
-            if (counts[i] == bestCount) tied.Add(i);
+        {
+            if (counts[i] == bestCount)
+            {
+                tied.Add(i);
+            }
+        }
 
         if (tied.Count == 1)
         {

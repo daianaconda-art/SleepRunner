@@ -127,6 +127,19 @@ internal static class TradeStageOcr
     /// <summary>
     /// 判断是否为评鉴战"出击前准备/挑战确认"页文案，反向排除二选一菜单的假阳性
     /// </summary>
+    public static bool IsAppraiseTradeStageMenuText(string titleText, string menuText)
+    {
+        if (!ContainsTradeStageTitleKeyword(titleText))
+            return false;
+
+        if (ContainsMainMenuKeyword(menuText) || ContainsPrepDetailKeyword(menuText))
+            return false;
+
+        return ContainsTradeKeyword(menuText) ||
+               ContainsTradeStageHint(menuText) ||
+               ContainsCommissionKeyword(menuText);
+    }
+
     public static bool ContainsPrepDetailKeyword(string text)
     {
         if (string.IsNullOrEmpty(text)) return false;

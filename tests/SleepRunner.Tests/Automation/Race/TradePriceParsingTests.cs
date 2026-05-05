@@ -25,6 +25,24 @@ public class TradePriceParsingTests
         Assert.True(score < 0);
     }
 
+    [Fact]
+    public void TryReadTrustedRowPrice_accepts_short_reliable_two_digit_row()
+    {
+        bool ok = InvokeTryReadTrustedRowPrice("\u666e\u901a\u725b\u597624", out int price);
+
+        Assert.True(ok);
+        Assert.Equal(24, price);
+    }
+
+    [Fact]
+    public void TryReadTrustedRowPrice_rejects_single_digit_row_noise()
+    {
+        bool ok = InvokeTryReadTrustedRowPrice("\u666e\u901a\u725b\u59764", out int price);
+
+        Assert.False(ok);
+        Assert.Equal(0, price);
+    }
+
     private static int InvokeExtractPriceValue(string text)
     {
         Type type = Type.GetType("SleepRunner.Automation.Race.Handlers.Trade.TradeDetailOcr, SleepRunner")
@@ -51,5 +69,21 @@ public class TradePriceParsingTests
         object candidate = method.Invoke(null, [text, value, matchIndex, digitCount])!;
         PropertyInfo score = candidate.GetType().GetProperty("Score")!;
         return (int)score.GetValue(candidate)!;
+    }
+
+    private static bool InvokeTryReadTrustedRowPrice(string rowText, out int price)
+    {
+        Type type = Type.GetType("SleepRunner.Automation.Race.Handlers.Trade.TradeDetailOcr, SleepRunner")
+            ?? throw new Xunit.Sdk.XunitException("TradeDetailOcr type was not found.");
+
+        MethodInfo method = type.GetMethod(
+                                "TryReadTrustedRowPrice",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("TradeDetailOcr.TryReadTrustedRowPrice was not found.");
+
+        object?[] args = [rowText, 0];
+        bool ok = (bool)method.Invoke(null, args)!;
+        price = (int)args[1]!;
+        return ok;
     }
 }

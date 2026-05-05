@@ -45,6 +45,26 @@ public class TrainingPowerStatTests
         Assert.Equal("current/max", reason);
     }
 
+    [Fact]
+    public void Focused_stamina_stat_rejects_unlabeled_attribute_cap_ratio()
+    {
+        bool parsed = InvokeTryParseStatValueFocused("1250/1250", "\u4f53\u529b", out int value, out string reason);
+
+        Assert.False(parsed);
+        Assert.Equal(-1, value);
+        Assert.Equal("unlabeled-cap-ratio", reason);
+    }
+
+    [Fact]
+    public void Focused_stamina_stat_rejects_unlabeled_attribute_cap_digits_with_suffix_noise()
+    {
+        bool parsed = InvokeTryParseStatValueFocused("1250n", "\u4f53\u529b", out int value, out string reason);
+
+        Assert.False(parsed);
+        Assert.Equal(-1, value);
+        Assert.Equal("unlabeled-cap-digits", reason);
+    }
+
     private static bool InvokeTryParseStatValueFocused(string text, string statName, out int value, out string reason)
     {
         Type type = Type.GetType("SleepRunner.Automation.Race.Handlers.Training.TrainingPowerStat, SleepRunner")

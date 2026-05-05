@@ -127,6 +127,32 @@ public class TradePurchasePolicyTests
         Assert.True(InvokeIsStrongDetailPurchaseCandidate(strengthOffer));
     }
 
+    [Fact]
+    public void ShouldScanBuyButtonState_skips_reliable_no_signal_offers()
+    {
+        bool shouldScan = InvokeShouldScanBuyButtonState(
+            hasReliableSlotText: true,
+            isPotentialPoint: false,
+            isMustBuy: false,
+            isStrengthIncrease: false,
+            isStaminaRecover: false);
+
+        Assert.False(shouldScan);
+    }
+
+    [Fact]
+    public void ShouldScanBuyButtonState_keeps_purchase_candidates()
+    {
+        bool shouldScan = InvokeShouldScanBuyButtonState(
+            hasReliableSlotText: true,
+            isPotentialPoint: false,
+            isMustBuy: true,
+            isStrengthIncrease: false,
+            isStaminaRecover: false);
+
+        Assert.True(shouldScan);
+    }
+
     private static IReadOnlyList<int> InvokeBuildPurchaseQueue(
         object[] offers,
         bool preferStrengthItems,
@@ -200,6 +226,25 @@ public class TradePurchasePolicyTests
                             ?? throw new Xunit.Sdk.XunitException("TradePurchasePolicy.IsStrongDetailPurchaseCandidate was not found.");
 
         return (bool)method.Invoke(null, [offer])!;
+    }
+
+    private static bool InvokeShouldScanBuyButtonState(
+        bool hasReliableSlotText,
+        bool isPotentialPoint,
+        bool isMustBuy,
+        bool isStrengthIncrease,
+        bool isStaminaRecover)
+    {
+        Type policyType = Type.GetType("SleepRunner.Automation.Race.Handlers.Trade.TradePurchasePolicy, SleepRunner")
+            ?? throw new Xunit.Sdk.XunitException("TradePurchasePolicy type was not found.");
+        MethodInfo method = policyType.GetMethod(
+                                "ShouldScanBuyButtonState",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("TradePurchasePolicy.ShouldScanBuyButtonState was not found.");
+
+        return (bool)method.Invoke(
+            null,
+            [hasReliableSlotText, isPotentialPoint, isMustBuy, isStrengthIncrease, isStaminaRecover])!;
     }
 
     private static object CreateTradeOffer(

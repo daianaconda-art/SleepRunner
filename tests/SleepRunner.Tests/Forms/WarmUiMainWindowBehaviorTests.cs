@@ -66,6 +66,52 @@ public class WarmUiMainWindowBehaviorTests
     }
 
     [Fact]
+    public void RaceMainWindow_key_log_appends_filtered_training_entries()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                new StubRaceController());
+
+            var keyLog = WinFormsTestHost.ReadPrivateField<Control>(window, "_keyLog");
+
+            Logger.Log("[Race:TrainingSelect] Slot 0: y=0.130 satMean=0.0 valMean=0.0 => empty (none)");
+            Logger.Log("[Race:TrainingSelect] Full scan snapshot: icons=[1,1,1,2,5], fails=[0,3,0,0,0], strength=373, stamina=326");
+            Logger.Log("[Race:TrainingSelect] Rule evaluation: profile=default, matched=guard_icons_3, action=TrainGuard, builtinDefault=False");
+
+            IReadOnlyList<string> entries = ReadKeyLogEntries(keyLog);
+
+            Assert.DoesNotContain(entries, entry => entry.Contains("Slot 0", StringComparison.Ordinal));
+            Assert.Contains(entries, entry => entry.Contains("icons=[1,1,1,2,5]", StringComparison.Ordinal));
+            Assert.Contains(entries, entry => entry.Contains("TrainGuard", StringComparison.Ordinal));
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_places_key_log_between_hero_and_tuning_sections()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                new StubRaceController());
+
+            var keyLog = WinFormsTestHost.ReadPrivateField<Control>(window, "_keyLog");
+            var sectionKeyLog = WinFormsTestHost.ReadPrivateField<Control>(window, "_sectionKeyLog");
+            var sectionTuning = WinFormsTestHost.ReadPrivateField<Control>(window, "_sectionTuning");
+            Rectangle heroCardBounds = WinFormsTestHost.ReadPrivateField<Rectangle>(window, "_heroCardBounds");
+
+            Assert.Same(window, keyLog.Parent);
+            Assert.Same(window, sectionKeyLog.Parent);
+            Assert.True(sectionKeyLog.Top > heroCardBounds.Bottom, $"Expected key log header below hero card, got header={sectionKeyLog.Top}, hero={heroCardBounds.Bottom}.");
+            Assert.True(keyLog.Top > sectionKeyLog.Top, $"Expected key log card below its header, got card={keyLog.Top}, header={sectionKeyLog.Top}.");
+            Assert.True(sectionTuning.Top > keyLog.Bottom, $"Expected tuning section below key log, got tuning={sectionTuning.Top}, keyLog.Bottom={keyLog.Bottom}.");
+            Assert.InRange(keyLog.Height, 88, 132);
+        });
+    }
+
+    [Fact]
     public void RaceMainWindow_alt_q_hotkey_starts_when_idle()
     {
         WinFormsTestHost.Run(() =>
@@ -304,6 +350,19 @@ public class WarmUiMainWindowBehaviorTests
             ?? throw new InvalidOperationException("HandleAutomationKeyboardHook method not found.");
 
         return (bool)method.Invoke(window, new object[] { message, vkCode, flags })!;
+    }
+
+    private static IReadOnlyList<string> ReadKeyLogEntries(Control keyLog)
+    {
+        PropertyInfo property = keyLog.GetType().GetProperty(
+                                    "Entries",
+                                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                                ?? throw new InvalidOperationException("Key log Entries property not found.");
+
+        object? value = property.GetValue(keyLog);
+        return value is IEnumerable<string> entries
+            ? entries.ToArray()
+            : throw new InvalidOperationException("Key log Entries property did not return strings.");
     }
 
     private sealed class StubRaceController : IRaceController

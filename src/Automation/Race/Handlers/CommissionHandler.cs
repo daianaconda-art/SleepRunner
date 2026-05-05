@@ -68,11 +68,23 @@ public class CommissionHandler : IRaceHandler
         }
 
         string text = CommissionOcrRegions.ReadCommissionText(screenshot);
-        bool hit = CommissionScreenChecks.IsCommissionListText(text);
+        string fallbackText = "";
+        bool hit = CommissionScreenChecks.IsCommissionEntryText(text, popupText);
+        if (!hit)
+        {
+            fallbackText = CommissionOcrRegions.ReadCommissionFallbackText(screenshot);
+            hit = CommissionScreenChecks.IsCommissionEntryText(text, fallbackText);
+        }
+
         if (hit)
-            Log.Log($"Commission screen hit: '{text}'");
-        else if (!string.IsNullOrEmpty(popupText) || !string.IsNullOrEmpty(text))
-            Log.Log($"Commission miss: popup='{popupText}', list='{text}'");
+        {
+            Log.Log($"Commission screen hit: list='{text}', popup='{popupText}', fallback='{fallbackText}'");
+        }
+        else if (!string.IsNullOrEmpty(popupText) || !string.IsNullOrEmpty(text) || !string.IsNullOrEmpty(fallbackText))
+        {
+            Log.Log($"Commission miss: popup='{popupText}', list='{text}', fallback='{fallbackText}'");
+        }
+
         return hit;
     }
 

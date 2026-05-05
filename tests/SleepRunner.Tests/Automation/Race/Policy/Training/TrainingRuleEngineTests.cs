@@ -168,6 +168,89 @@ public class TrainingRuleEngineTests
     }
 
     [Fact]
+    public void Probe_returns_later_strength_icons_rule_when_strength_stat_was_attempted_but_unavailable()
+    {
+        var profile = new TrainingRuleProfile();
+        profile.Rules.Add(new TrainingRuleCard
+        {
+            Id = "rest_on_strength_fail",
+            Field = TrainingRuleField.StrengthFailRate,
+            Operator = TrainingRuleOperator.GreaterThan,
+            Value = 25,
+            Action = TrainingDecisionAction.Rest,
+        });
+        profile.Rules.Add(new TrainingRuleCard
+        {
+            Id = "rush_strength",
+            Field = TrainingRuleField.StrengthStat,
+            Operator = TrainingRuleOperator.GreaterThan,
+            Value = 450,
+            Action = TrainingDecisionAction.TrainStrength,
+        });
+        profile.Rules.Add(new TrainingRuleCard
+        {
+            Id = "strength_icons_3",
+            Field = TrainingRuleField.StrengthIcons,
+            Operator = TrainingRuleOperator.GreaterThanOrEqual,
+            Value = 3,
+            Action = TrainingDecisionAction.TrainStrength,
+        });
+
+        var context = new TrainingDecisionContext
+        {
+            ProfileName = "lazy-strength.json",
+            IconCounts = [3, 0, 0, 0, 0],
+            KnownIconMask = 0b00001,
+            FailRates = [0, 0, 0, 0, 0],
+            KnownFailRateMask = 0b00001,
+        };
+        SetUnavailableFields(context, TrainingRuleField.StrengthStat);
+
+        var probe = TrainingRuleEngine.Probe(context, profile);
+
+        Assert.NotNull(probe.Decision);
+        Assert.Null(probe.MissingField);
+        Assert.Equal("strength_icons_3", probe.Decision!.MatchedRuleId);
+        Assert.Equal(TrainingDecisionAction.TrainStrength, probe.Decision.Action);
+    }
+
+    [Fact]
+    public void Probe_still_requests_strength_stat_before_later_strength_icons_when_not_attempted_yet()
+    {
+        var profile = new TrainingRuleProfile();
+        profile.Rules.Add(new TrainingRuleCard
+        {
+            Id = "rush_strength",
+            Field = TrainingRuleField.StrengthStat,
+            Operator = TrainingRuleOperator.GreaterThan,
+            Value = 450,
+            Action = TrainingDecisionAction.TrainStrength,
+        });
+        profile.Rules.Add(new TrainingRuleCard
+        {
+            Id = "strength_icons_3",
+            Field = TrainingRuleField.StrengthIcons,
+            Operator = TrainingRuleOperator.GreaterThanOrEqual,
+            Value = 3,
+            Action = TrainingDecisionAction.TrainStrength,
+        });
+
+        var context = new TrainingDecisionContext
+        {
+            ProfileName = "lazy-strength.json",
+            IconCounts = [3, 0, 0, 0, 0],
+            KnownIconMask = 0b00001,
+            FailRates = [0, 0, 0, 0, 0],
+            KnownFailRateMask = 0b00001,
+        };
+
+        var probe = TrainingRuleEngine.Probe(context, profile);
+
+        Assert.Null(probe.Decision);
+        Assert.Equal(TrainingRuleField.StrengthStat, probe.MissingField);
+    }
+
+    [Fact]
     public void Probe_does_not_skip_any_fail_rate_rules_when_other_rows_are_still_unknown()
     {
         var profile = new TrainingRuleProfile();
@@ -235,6 +318,33 @@ public class TrainingRuleEngineTests
         Assert.Null(probe.MissingField);
         Assert.Equal(TrainingDecisionAction.TrainStrength, probe.Decision!.Action);
         Assert.Equal(0, probe.Decision.TargetRowIndex);
+    }
+
+    [Fact]
+    public void Probe_builtin_default_requests_icons_when_rush_stat_was_attempted_but_unavailable()
+    {
+        var profile = new TrainingRuleProfile();
+        profile.Rules.Add(new TrainingRuleCard
+        {
+            Id = "fallback",
+            Action = TrainingDecisionAction.BuiltinDefault,
+            IsFallback = true,
+        });
+
+        var context = new TrainingDecisionContext
+        {
+            ProfileName = "builtin-default.json",
+            FailRates = [5, 5, 5, 5, 5],
+            KnownFailRateMask = 0b11111,
+            LegacyFailRateThreshold = 30,
+            LegacyRushThreshold = 450,
+        };
+        SetUnavailableFields(context, TrainingRuleField.StrengthStat);
+
+        var probe = TrainingRuleEngine.Probe(context, profile);
+
+        Assert.Null(probe.Decision);
+        Assert.Equal(TrainingRuleField.StrengthIcons, probe.MissingField);
     }
 
     [Fact]
@@ -520,5 +630,14 @@ public class TrainingRuleEngineTests
         Assert.Equal(TrainingDecisionAction.TrainStrength, result.Action);
         Assert.Equal(0, result.TargetRowIndex);
         Assert.False(result.UsedBuiltinDefault);
+    }
+
+    private static void SetUnavailableFields(
+        TrainingDecisionContext context,
+        params TrainingRuleField[] fields)
+    {
+        var property = typeof(TrainingDecisionContext).GetProperty("UnavailableFields")
+            ?? throw new Xunit.Sdk.XunitException("TrainingDecisionContext.UnavailableFields was not found.");
+        property.SetValue(context, fields);
     }
 }

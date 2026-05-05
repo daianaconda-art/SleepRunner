@@ -347,9 +347,8 @@ internal static class TrainingPowerStat
         if (TryReadAttributePanelCurrentValueByPixels(panel, currentValueRegion, maxValue, out int pixelValue, out string pixelDigits, out double pixelConfidence))
         {
             Logger.Log($"[Race:TrainingSelect] attribute panel {statName} pixel-current: '{pixelDigits}' => {pixelValue} (confidence={pixelConfidence:F3})");
-            bool acceptPixel = best == null ||
-                               best.Value.Value == pixelValue ||
-                               (best.Value.Value < 100 && pixelValue >= 100);
+            int? bestValue = best.HasValue ? best.Value.Value : null;
+            bool acceptPixel = ShouldAcceptAttributePanelPixelValue(bestValue, pixelValue, pixelConfidence);
             if (acceptPixel)
                 best = (pixelValue, 20, $"pixel:{pixelDigits}");
         }
@@ -366,6 +365,38 @@ internal static class TrainingPowerStat
 
         Logger.Log($"[Race:TrainingSelect] attribute panel {statName}: no valid value found");
         return null;
+    }
+
+    private static bool ShouldAcceptAttributePanelPixelValue(int? ocrValue, int pixelValue, double pixelConfidence)
+    {
+        if (!ocrValue.HasValue)
+            return true;
+
+        if (ocrValue.Value == pixelValue)
+            return true;
+
+        if (ocrValue.Value < 100 && pixelValue >= 100)
+            return true;
+
+        return pixelConfidence >= 0.90 &&
+               pixelValue >= 100 &&
+               DigitCount(pixelValue) == DigitCount(ocrValue.Value);
+    }
+
+    private static int DigitCount(int value)
+    {
+        value = Math.Abs(value);
+        if (value == 0)
+            return 1;
+
+        int count = 0;
+        while (value > 0)
+        {
+            count++;
+            value /= 10;
+        }
+
+        return count;
     }
 
     private static async Task<List<string>> RecognizeAttributePanelCurrentValueVariants(

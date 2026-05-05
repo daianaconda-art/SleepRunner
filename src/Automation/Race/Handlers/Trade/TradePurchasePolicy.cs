@@ -11,7 +11,15 @@ internal static class TradePurchasePolicy
     public static TradeOffer BuildOfferFromShot(OpenCvSharp.Mat detailShot, int slotIndex)
     {
         string rowSlotText = TradeDetailOcr.ReadRowSlotText(detailShot, slotIndex);
-        string slotText = TradeDetailOcr.ReadSlotText(detailShot, slotIndex);
+        string detailTitle = TradeDetailOcr.ReadDetailTitleText(detailShot);
+        return BuildOfferFromShot(detailShot, slotIndex, rowSlotText, detailTitle);
+    }
+
+    public static TradeOffer BuildOfferFromShot(OpenCvSharp.Mat detailShot, int slotIndex, string rowSlotText, string detailTitle)
+    {
+        string slotText = TradeDetailOcr.IsReliableSlotText(detailTitle)
+            ? detailTitle
+            : rowSlotText;
         bool hasReliableSlotText = TradeDetailOcr.IsReliableSlotText(slotText);
         int price = TradeDetailOcr.ReadOfferPrice(detailShot, slotIndex, rowSlotText);
         string effectText = TradeDetailOcr.ReadEffectText(detailShot);
@@ -23,9 +31,17 @@ internal static class TradePurchasePolicy
         bool affectsStaminaStat = TargetsStaminaStat(slotText, effectText, isStaminaRecover);
         bool isPotentialPoint = IsPotentialPointOffer(slotText, effectText);
         bool isMustBuy = isPotentialPoint || IsTradeKeywordOffer(slotText, effectText, hasReliableSlotText) || isStaminaRecover;
-        bool hasBuyButtonVisible = TradeBuyActions.HasVisibleBuySignal(detailShot);
-        bool isBuyDisabled = TradeBuyActions.IsBuyButtonGrayDisabled(detailShot);
-        bool isRowSoldOut = TradeDetailOcr.IsRowMarkedSoldOut(detailShot, slotIndex);
+        bool scanBuyButton = ShouldScanBuyButtonState(
+            hasReliableSlotText,
+            isPotentialPoint,
+            isMustBuy,
+            isStrengthIncrease,
+            isStaminaRecover);
+        bool hasBuyButtonVisible = scanBuyButton && TradeBuyActions.HasVisibleBuySignal(detailShot);
+        bool isBuyDisabled = scanBuyButton && TradeBuyActions.IsBuyButtonGrayDisabled(detailShot);
+        bool isRowSoldOut = scanBuyButton
+            ? TradeDetailOcr.IsRowMarkedSoldOut(detailShot, slotIndex)
+            : TradeDetailOcr.HasRowSoldOutStamp(detailShot, slotIndex);
 
         var offer = new TradeOffer
         {
@@ -49,6 +65,20 @@ internal static class TradePurchasePolicy
 
         Logger.Log($"[Race:Trade] Trade offer[{slotIndex + 1}]: price={price}, strengthGain={strengthGain}, staminaRecover={staminaRecover}, strengthMatch={isStrengthIncrease}, staminaMatch={isStaminaRecover}, affectsStrengthStat={affectsStrengthStat}, affectsStaminaStat={affectsStaminaStat}, potentialPoint={isPotentialPoint}, mustBuy={isMustBuy}, slotReliable={hasReliableSlotText}, buyVisible={hasBuyButtonVisible}, buyDisabled={isBuyDisabled}, rowSoldOut={isRowSoldOut}, slot='{slotText}', effect='{effectText}'");
         return offer;
+    }
+
+    public static bool ShouldScanBuyButtonState(
+        bool hasReliableSlotText,
+        bool isPotentialPoint,
+        bool isMustBuy,
+        bool isStrengthIncrease,
+        bool isStaminaRecover)
+    {
+        return !hasReliableSlotText ||
+               isPotentialPoint ||
+               isMustBuy ||
+               isStrengthIncrease ||
+               isStaminaRecover;
     }
 
     public static TradeOffer BuildOfferFromRowFallback(int slotIndex, string rowText, int price, bool soldOut)
@@ -84,6 +114,20 @@ internal static class TradePurchasePolicy
             IsBuyDisabled = soldOut,
             IsRowSoldOut = soldOut
         };
+    }
+
+    public static TradeOffer? TryBuildSoldOutRowFallback(int slotIndex, string rowText, bool rowSoldOut)
+    {
+        if (!rowSoldOut)
+            return null;
+
+        string normalizedRow = TradeStageOcr.NormalizeOcr(rowText);
+        int price = TradeDetailOcr.ExtractPrice(normalizedRow);
+        if (price <= 0 || !TradeDetailOcr.IsReliableSlotText(normalizedRow))
+            return null;
+
+        Logger.Log($"[Race:Trade] Trade offer[{slotIndex + 1}]: sold-out row fallback '{normalizedRow}' price={price}.");
+        return BuildOfferFromRowFallback(slotIndex, normalizedRow, price, soldOut: true);
     }
 
     public static bool IsOfferReadable(TradeOffer offer)

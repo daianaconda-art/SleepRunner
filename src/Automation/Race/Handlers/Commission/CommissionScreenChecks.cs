@@ -145,6 +145,14 @@ internal static class CommissionScreenChecks
                commissionText.Contains("低阶委托", StringComparison.Ordinal);
     }
 
+    internal static bool IsCommissionEntryText(string listText, string fallbackText)
+    {
+        if (IsCommissionListText(listText))
+            return true;
+
+        return IsCommissionTierSelectionText(fallbackText);
+    }
+
     private static int CountContains(string text, IEnumerable<string> keywords)
     {
         int count = 0;

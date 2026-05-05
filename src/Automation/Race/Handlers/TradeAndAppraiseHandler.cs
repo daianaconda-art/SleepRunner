@@ -42,11 +42,8 @@ public class TradeAndAppraiseHandler : IRaceHandler
         bool hasCommission = TradeStageOcr.ContainsCommissionKeyword(menuText);
         bool looksLikeMainMenu = TradeStageOcr.ContainsMainMenuKeyword(menuText);
         bool looksLikePrepDetail = TradeStageOcr.ContainsPrepDetailKeyword(menuText);
-        // 关键修正：评鉴战"出击前准备"页里也会出现 讨伐/讨伐评鉴战 字样，
-        // 之前只靠 hasCommission 判定会把那一页误识别为二选一菜单。
-        // 真正的二选一菜单一定带"交易/商店/到货"信号，否则就不要贸然接管。
-        bool hasStageMenu = hasTrade && !looksLikePrepDetail;
-        bool hit = hasPrepTitle && hasStageMenu;
+        // OCR 有时只读到委托/讨伐侧，分流页判定仍需接手；出击前详情页由 helper 排除。
+        bool hit = TradeStageOcr.IsAppraiseTradeStageMenuText(titleText, menuText);
         if (hit)
             Log.Log($"FLOW Stage hit: appraise/trade two-choice menu ('{combined}')");
         else if (!string.IsNullOrEmpty(titleText) || !string.IsNullOrEmpty(menuText))
