@@ -152,7 +152,8 @@ public class EventHandler : IRaceHandler
         if (EventScreenChecks.IsTrainPlatformSingleOptionScreen(platformHint))
         {
             Log.Log($"Train-platform single-option detected ('{platformHint}'), auto-select option 1.");
-            await ctx.ClickAtPercent(EventOptionGeometry.OptionClickX, EventOptionGeometry.BottomOptionY);
+            if (!await TrySendEventOptionHotkeyAsync(ctx, 1, "Train-platform single option"))
+                await ctx.ClickAtPercent(EventOptionGeometry.OptionClickX, EventOptionGeometry.BottomOptionY);
             await ctx.Wait(1500);
             return;
         }
@@ -433,10 +434,12 @@ public class EventHandler : IRaceHandler
         for (int attempt = 1; attempt <= Math.Max(1, primaryAttempts); attempt++)
         {
             Log.Log(
-                $"{logTag}: click primary option {primaryOption}/{totalOptions} target pct=({EventOptionGeometry.OptionClickX:F3},{primaryY:F3}) " +
+                $"{logTag}: select primary option {primaryOption}/{totalOptions} via hotkey " +
+                $"with mouse fallback pct=({EventOptionGeometry.OptionClickX:F3},{primaryY:F3}) " +
                 $"px={EventOptionGeometry.FormatPoint(beforeShot, EventOptionGeometry.OptionClickX, primaryY)} shot={beforeShot.Width}x{beforeShot.Height} " +
                 $"(attempt {attempt}/{Math.Max(1, primaryAttempts)}).");
-            await ctx.ClickAtPercent(EventOptionGeometry.OptionClickX, primaryY);
+            if (!await TrySendEventOptionHotkeyAsync(ctx, primaryOption, $"{logTag}: primary option {primaryOption}/{totalOptions}"))
+                await ctx.ClickAtPercent(EventOptionGeometry.OptionClickX, primaryY);
             await ctx.Wait(waitAfterPrimaryMs);
 
             using var afterPrimary = ctx.CaptureScreen();
@@ -462,10 +465,11 @@ public class EventHandler : IRaceHandler
             ? EventOptionGeometry.ResolveOptionClickY(beforeShot, matchedEvent, fallbackOption, totalOptions)
             : EventOptionGeometry.CalcOptionClickY(fallbackOption, totalOptions);
         Log.Log(
-            $"{logTag}: no screen change after primary attempts, fallback click option {fallbackOption}/{totalOptions} " +
-            $"target pct=({EventOptionGeometry.OptionClickX:F3},{fallbackY:F3}) px={EventOptionGeometry.FormatPoint(beforeShot, EventOptionGeometry.OptionClickX, fallbackY)} " +
+            $"{logTag}: no screen change after primary attempts, fallback select option {fallbackOption}/{totalOptions} via hotkey " +
+            $"with mouse fallback pct=({EventOptionGeometry.OptionClickX:F3},{fallbackY:F3}) px={EventOptionGeometry.FormatPoint(beforeShot, EventOptionGeometry.OptionClickX, fallbackY)} " +
             $"shot={beforeShot.Width}x{beforeShot.Height}.");
-        await ctx.ClickAtPercent(EventOptionGeometry.OptionClickX, fallbackY);
+        if (!await TrySendEventOptionHotkeyAsync(ctx, fallbackOption, $"{logTag}: fallback option {fallbackOption}/{totalOptions}"))
+            await ctx.ClickAtPercent(EventOptionGeometry.OptionClickX, fallbackY);
         await ctx.Wait(waitAfterFallbackMs);
 
         using var afterFallback = ctx.CaptureScreen();
@@ -499,9 +503,10 @@ public class EventHandler : IRaceHandler
 
         double primaryY = EventOptionGeometry.ResolveOptionClickY(beforeShot, matchedEvent, optionIndex, totalOptions);
         Log.Log(
-            $"{logTag}: click option {optionIndex}/{totalOptions} target pct=({EventOptionGeometry.OptionClickX:F3},{primaryY:F3}) " +
+            $"{logTag}: select option {optionIndex}/{totalOptions} via hotkey with mouse fallback pct=({EventOptionGeometry.OptionClickX:F3},{primaryY:F3}) " +
             $"px={EventOptionGeometry.FormatPoint(beforeShot, EventOptionGeometry.OptionClickX, primaryY)} shot={beforeShot.Width}x{beforeShot.Height}.");
-        await ctx.ClickAtPercent(EventOptionGeometry.OptionClickX, primaryY);
+        if (!await TrySendEventOptionHotkeyAsync(ctx, optionIndex, $"{logTag}: option {optionIndex}/{totalOptions}"))
+            await ctx.ClickAtPercent(EventOptionGeometry.OptionClickX, primaryY);
         await ctx.Wait(1500);
 
         using var afterPrimary = ctx.CaptureScreen();
@@ -559,6 +564,35 @@ public class EventHandler : IRaceHandler
             return null;
 
         return fallbackOption;
+    }
+
+    private static async Task<bool> TrySendEventOptionHotkeyAsync(GameContext ctx, int optionIndex, string logTag)
+    {
+        if (!TryResolveEventOptionAction(optionIndex, out GameActionKey action))
+        {
+            Log.Log($"{logTag}: option {optionIndex} has no Alt hotkey mapping, use mouse fallback.");
+            return false;
+        }
+
+        Log.Log($"{logTag}: sending Alt+{optionIndex} ({action}).");
+        bool sent = await ctx.SendGameAction(action);
+        if (!sent)
+            Log.Log($"{logTag}: Alt+{optionIndex} was not sent, use mouse fallback.");
+        return sent;
+    }
+
+    private static bool TryResolveEventOptionAction(int optionIndex, out GameActionKey action)
+    {
+        action = optionIndex switch
+        {
+            1 => GameActionKey.EventSelectOption1,
+            2 => GameActionKey.EventSelectOption2,
+            3 => GameActionKey.EventSelectOption3,
+            4 => GameActionKey.EventSelectOption4,
+            _ => default,
+        };
+
+        return optionIndex is >= 1 and <= 4;
     }
 
     /// <summary>

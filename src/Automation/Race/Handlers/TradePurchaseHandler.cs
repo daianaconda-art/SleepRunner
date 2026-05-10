@@ -93,10 +93,20 @@ public class TradePurchaseHandler : IRaceHandler
     // 「Lv.N」OCR 兼容：游戏里偶尔被识别成 "Lv. 6"、"L v 6"、"LV6" 等
     private static readonly Regex TrainingLvPattern = new(@"[Ll][\s\.]*[Vv][\s\.]*\d", RegexOptions.Compiled);
 
-    private readonly ITradeFlowExecutor _executor = new DefaultTradeFlowExecutor();
+    private readonly ITradeFlowExecutor _executor;
+    private readonly TradeStateStore _tradeStateStore;
 
     public TradePurchaseHandler()
+        : this(new DefaultTradeFlowExecutor(), new TradeStateStore())
     {
+    }
+
+    internal TradePurchaseHandler(
+        ITradeFlowExecutor? executor,
+        TradeStateStore tradeStateStore)
+    {
+        _executor = executor ?? new DefaultTradeFlowExecutor();
+        _tradeStateStore = tradeStateStore;
     }
 
     public bool CanHandle(FrameContext frame)
@@ -220,6 +230,9 @@ public class TradePurchaseHandler : IRaceHandler
 
         // 无论买没买成，交易分支结束后都要尝试收尾回到分流页；
         // 否则会停留在交易页，后续没有 handler 接手。
+        _tradeStateStore.SaveVisited(true);
+        Log.Log("Trade purchase handler: trade branch marked visited before exit cleanup.");
+
         await ExitTradeIfStillOnScreenAsync(ctx);
         await TryClickCommissionAfterTradeExitAsync(ctx);
         await ctx.Wait(300);
@@ -374,11 +387,12 @@ public class TradePurchaseHandler : IRaceHandler
             text.Contains("OUT", StringComparison.OrdinalIgnoreCase))
             return true;
 
-        // 纯数字兜底必须同时含交易语义关键字，避免训练页 Lv/失败率数字误命中
+        // 纯数字兜底必须同时含强交易语义关键字，避免训练页 Lv/失败率数字、
+        // 地区移动介绍里的“商店购买 + 加成数字”等叙述文本误命中。
         // 历史 bug：仅靠 "≥2 数字 + 长度≥8" 会把训练菜单 OCR 当作交易项
         return CountPriceLikeNumbers(text) >= 2
                && text.Length >= 8
-               && (ContainsTradeKeyword(text) || ContainsTradeItemKeyword(text));
+               && ContainsStrongTradeListKeyword(text);
     }
 
     /// <summary>
@@ -396,6 +410,17 @@ public class TradePurchaseHandler : IRaceHandler
         if (string.IsNullOrEmpty(text))
             return 0;
         return Regex.Matches(text, @"\d{1,3}").Count;
+    }
+
+    private static bool ContainsStrongTradeListKeyword(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return false;
+
+        if (ContainsTradeItemKeyword(text))
+            return true;
+
+        return text.Contains("\u4ea4\u6613", StringComparison.Ordinal);
     }
 
     /// <summary>

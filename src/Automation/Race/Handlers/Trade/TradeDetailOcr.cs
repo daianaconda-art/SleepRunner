@@ -84,8 +84,8 @@ internal static class TradeDetailOcr
     public static int ReadCurrentMoney(Mat screenshot)
     {
         bool ok = HudMoneyOcr.TryReadMoney(screenshot, out int money, out string summary);
-        Logger.Log($"[Race:Trade] Trade executor: money OCR regions => {summary}");
-        return ok ? money : 0;
+        Logger.Log($"[Race:Trade] Trade executor: money OCR ok={ok}, money={(ok ? money.ToString() : "?")}, regions => {summary}");
+        return ok ? money : -1;
     }
 
     public static string ClipForLog(string text, int max)

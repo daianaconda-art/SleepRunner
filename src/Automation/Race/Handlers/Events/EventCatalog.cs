@@ -101,16 +101,32 @@ internal sealed class EventCatalog
         if (_decisionData == null) return null;
 
         string normalizedTitle = EventOcrRegions.NormalizeEventTitleForMatch(title);
+        string normalizedOptions = EventOcrRegions.NormalizeOcr(optionsText);
+        bool allowTitleOnlyMatch =
+            string.IsNullOrEmpty(normalizedOptions) ||
+            EventScreenChecks.IsEventOptionHint(normalizedOptions);
 
         foreach (var evt in _decisionData.Events)
         {
             string name = EventOcrRegions.NormalizeEventTitleForMatch(evt.EventName);
             if (!string.IsNullOrEmpty(name) && normalizedTitle.Contains(name))
             {
+                if (!allowTitleOnlyMatch)
+                {
+                    Log.Log(
+                        $"  Title match ignored: '{evt.EventName}' because option text is not selectable " +
+                        $"('{EventScreenChecks.ClipPreview(normalizedOptions)}')");
+                    break;
+                }
+
                 Log.Log($"  Title match: '{evt.EventName}'");
                 return evt;
             }
         }
+
+        var weatherTitleEvent = TryMatchWeatherChoiceEventByTitle(normalizedTitle, allowTitleOnlyMatch);
+        if (weatherTitleEvent != null)
+            return weatherTitleEvent;
 
         var weatherEvent = TryMatchWeatherTrainingEvent(optionsText, storyText);
         if (weatherEvent != null)
@@ -156,6 +172,32 @@ internal sealed class EventCatalog
         }
 
         return null;
+    }
+
+    private RaceEvent? TryMatchWeatherChoiceEventByTitle(string normalizedTitle, bool allowTitleOnlyMatch)
+    {
+        if (_decisionData == null ||
+            string.IsNullOrEmpty(normalizedTitle) ||
+            !allowTitleOnlyMatch)
+            return null;
+
+        if (normalizedTitle.Contains("\u66b4\u96ea", StringComparison.Ordinal) ||
+            normalizedTitle.Contains("\u5927\u96ea", StringComparison.Ordinal))
+        {
+            var match = FindEventById("weather_snow");
+            if (match != null)
+            {
+                Log.Log("  Weather title match: weather_snow");
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private RaceEvent? FindEventById(string id)
+    {
+        return _decisionData?.Events.FirstOrDefault(e => string.Equals(e.Id, id, StringComparison.Ordinal));
     }
 
     /// <summary>

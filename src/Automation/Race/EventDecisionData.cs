@@ -3,17 +3,6 @@ using System.Text.Json.Serialization;
 namespace SleepRunner.Automation.Race;
 
 /// <summary>
-/// 跑马基调方向：攻击型 or 生存型
-/// 仅作为"内置硬编码逻辑"（PowerRush / Stamina rush / 训练破平局 / Trade strength offers）的开关；
-/// 事件 / 选卡 / 交易关键词决策已挪到 events/ + cards/ + trade/ 三套 profile JSON 自行配置。
-/// </summary>
-public enum BuildDirection
-{
-    Attack,
-    Survival
-}
-
-/// <summary>
 /// 事件决策 JSON 顶层结构：events 数组按顺序匹配
 /// </summary>
 public class EventDecisionData

@@ -143,11 +143,11 @@
       "status": "confirmed",
       "recommended_option": 1,
       "options": [
-        { "index": 1, "keyword": "让我们用钱来解决这个问题", "alias": ["用钱", "解决"] },
-        { "index": 2, "keyword": "如果自己驾驶起重机呢", "alias": ["驾驶", "重机"] },
-        { "index": 3, "keyword": "我需要找条绕路", "alias": ["绕路"] }
+        { "index": 1, "keyword": "让我们用钱来解决这个问题", "alias": ["用钱", "解决", "这个金额够吗", "金额够吗"] },
+        { "index": 2, "keyword": "如果自己驾驶起重机呢", "alias": ["驾驶", "重机", "自己开起重机", "开起重机", "起重机"] },
+        { "index": 3, "keyword": "我需要找条绕路", "alias": ["绕路", "替代路线", "有没有替代路线"] }
       ],
-      "note": "一般选1花金币回体力"
+      "note": "现场登记：2026-05-06；当前本地化标题为迷宫探勘，按用户截图要求默认选1。一般选1花金币回体力"
     },
     {
       "id": "ambush",
@@ -279,15 +279,15 @@
     },
     {
       "id": "reset_vacation",
-      "event_name": "蕾塞特的假期",
+      "event_name": "莉赛特的假期",
       "category": "十月下旬（固定事件）",
       "status": "confirmed",
       "recommended_option": 1,
       "options": [
-        { "index": 1, "keyword": "我们一起找个地方买吧", "alias": ["一起找个地方", "买吧"] },
-        { "index": 2, "keyword": "请告诉我它的销售地点", "alias": ["销售地点"] }
+        { "index": 1, "keyword": "边找边逛的时间也会很有趣的。", "alias": ["边找边逛", "时间也会很有趣", "一起找个地方", "买吧", "找个地方买"] },
+        { "index": 2, "keyword": "这附近就有。", "alias": ["这附近", "附近就有", "销售地点"] }
       ],
-      "note": "达到命中/命抗条件肯定选1。选不了就选2"
+      "note": "现场登记：2026-05-06；新版文案为“边找边逛的时间也会很有趣的/这附近就有”。达到命中/命抗条件肯定选1，选不了就选2"
     },
     {
       "id": "volleyball_qualifier",
@@ -305,17 +305,17 @@
     },
     {
       "id": "hot_spring_prep",
-      "event_name": "温泉节的准备工作",
+      "event_name": "温泉庆典准备",
       "category": "十一月初（固定事件）",
       "status": "confirmed",
       "recommended_option": 1,
       "options": [
-        { "index": 1, "keyword": "一座可以骑熊的房子", "alias": ["骑熊", "房子"] },
-        { "index": 2, "keyword": "一家提供美味传统美食的餐厅", "alias": ["传统美食", "餐厅"] },
-        { "index": 3, "keyword": "继续住在你现有的住处", "alias": ["现有的住处"] },
-        { "index": 4, "keyword": "两个都不喜欢", "alias": ["都不喜欢"] }
+        { "index": 1, "keyword": "可以骑熊的家！", "alias": ["骑熊", "可以骑熊", "一座可以骑熊的房子", "房子"] },
+        { "index": 2, "keyword": "准备了美味传统料理的家！", "alias": ["美味传统料理", "传统料理", "一家提供美味传统美食的餐厅", "传统美食", "餐厅"] },
+        { "index": 3, "keyword": "住在原本的住处吧。", "alias": ["原本的住处", "住处吧", "继续住在你现有的住处", "现有的住处"] },
+        { "index": 4, "keyword": "两边都不要。", "alias": ["两边都不要", "两个都不喜欢", "都不喜欢"] }
       ],
-      "note": "心情不是最高选1回心情拿技能点。心情满了选2收益更高。3选项千万别选"
+      "note": "现场登记：2026-05-05；按用户截图要求默认选1。心情不是最高选1回心情拿技能点。心情满了选2收益更高。3选项千万别选"
     },
     {
       "id": "weather_tropical",
@@ -348,9 +348,10 @@
       "category": "十一月中旬（随机事件）",
       "status": "confirmed",
       "recommended_option": 1,
+      "fallback_option": 2,
       "options": [
-        { "index": 1, "keyword": "使用暖宝宝", "alias": ["暖宝宝"] },
-        { "index": 2, "keyword": "想办法硬撑过去", "alias": ["硬撑过去"] }
+        { "index": 1, "keyword": "使用暖宝宝", "alias": ["暖宝宝", "使用暖暖包", "暖暖包"] },
+        { "index": 2, "keyword": "想办法硬撑过去", "alias": ["硬撑过去", "想办法忍耐一下", "忍耐一下"] }
       ],
       "note": "有暖宝宝选1。没买到就只能选2但会移除所有正面buff"
     },
@@ -360,6 +361,7 @@
       "category": "十一月下旬（固定事件）",
       "status": "confirmed",
       "recommended_option": 1,
+      "fallback_option": 2,
       "options": [
         { "index": 1, "keyword": "我们应该先填饱肚子吗", "alias": ["填饱肚子"] },
         { "index": 2, "keyword": "深呼吸放松", "alias": ["深呼吸", "放松"] },
@@ -395,16 +397,16 @@
     },
     {
       "id": "knight_raid",
-      "event_name": "突袭 - 强盗骑士",
-      "category": "十二月中旬（随机事件）",
+      "event_name": "突发遭遇一强盗骑士",
+      "category": "十二月中旬（当前界面 OCR 记录）",
       "status": "confirmed",
       "recommended_option": 1,
       "options": [
-        { "index": 1, "keyword": "让我们孵化它吧", "alias": ["孵化"] },
-        { "index": 2, "keyword": "我期待未来与您合作", "alias": ["未来", "合作"] },
-        { "index": 3, "keyword": "作战撤退", "alias": ["撤退"] }
+        { "index": 1, "keyword": "把他们解决掉！", "alias": ["解决掉", "把他们解决"] },
+        { "index": 2, "keyword": "今后也请多多关照。", "alias": ["今后也请", "多多关照"] },
+        { "index": 3, "keyword": "战略性撤退！", "alias": ["战略性撤退", "撤退"] }
       ],
-      "note": "无脑选1。要不就选3放弃"
+      "note": "现场登记：2026-05-05；按用户截图要求默认选1。无脑选1；要不就选3放弃。"
     },
     {
       "id": "reset_melancholy",
@@ -512,8 +514,8 @@
       "status": "confirmed",
       "recommended_option": 1,
       "options": [
-        { "index": 1, "keyword": "悠闲地度过时光", "alias": ["悠闲", "度过时光"] },
-        { "index": 2, "keyword": "按照原计划度过时间", "alias": ["原计划"] }
+        { "index": 1, "keyword": "悠闲地度过时光", "alias": ["悠闲", "度过时光", "享受和平的日常", "享受和平", "和平的日常"] },
+        { "index": 2, "keyword": "按照原计划度过时间", "alias": ["原计划", "把计划付诸实行", "计划付诸实行"] }
       ],
       "note": "一般选1赌回体。不想减心情的可选2"
     },
@@ -524,10 +526,10 @@
       "status": "confirmed",
       "recommended_option": 1,
       "options": [
-        { "index": 1, "keyword": "继续训练", "alias": ["继续训练"] },
-        { "index": 2, "keyword": "回旅馆休息", "alias": ["回旅馆", "休息"] }
+        { "index": 1, "keyword": "继续训练", "alias": ["继续训练", "区区闪电", "没什么好怕", "闪电没什么好怕"] },
+        { "index": 2, "keyword": "回旅馆休息", "alias": ["回旅馆", "休息", "不要逞强", "先撤离", "撤离"] }
       ],
-      "note": "推荐选1继续训练，技能点重要"
+      "note": "现场登记：2026-05-06；当前本地化标题为今天天气-打雷，按用户截图要求默认选1。推荐选1继续训练，技能点重要"
     },
     {
       "id": "weather_fog",
@@ -905,15 +907,15 @@
     },
     {
       "id": "rabbit_truth",
-      "event_name": "兔子旁边的兔子旁边的兔子",
+      "event_name": "兔子旁边是兔子旁边是兔子",
       "category": "支援卡事件",
-      "status": "pending",
-      "recommended_option": null,
+      "status": "confirmed",
+      "recommended_option": 1,
       "options": [
-        { "index": 1, "keyword": "坦白说出真相", "alias": ["坦白", "真相"] },
-        { "index": 2, "keyword": "含糊带过", "alias": ["含糊带过"] }
+        { "index": 1, "keyword": "坦白说出。", "alias": ["坦白说出", "坦白", "真相"] },
+        { "index": 2, "keyword": "含胡带过。", "alias": ["含胡带过", "含糊带过"] }
       ],
-      "note": "选1成功收益高(锋利成长技能)但有风险。选2稳定给生命天赋折扣。需人工确认"
+      "note": "现场登记：2026-05-05；按用户截图要求默认选1。选1成功收益高(锋利成长技能)但有风险；选2稳定给生命天赋折扣。"
     },
     {
       "id": "experienced_talk",

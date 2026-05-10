@@ -19,13 +19,13 @@ internal static class EventOptionGeometry
     public const double OptionSpacing = 0.08;
     public const double RetryAlternateMinDeltaY = 0.012;
     public const double RetrySortAnchorThresholdY = 0.03;
-    public const int MaxRetrySweepCount = 4;
+    public const int MaxRetrySweepCount = 2;
 
-    // 二选项：第 1 项 0.65, 第 2 项 0.74（避免落到 Story 横幅 0.78+）
-    public static readonly double[] TwoOptionCenters = [0.65, 0.74];
-    public static readonly double[] ThreeOptionCenters = [0.57, 0.65, 0.73];
-    // 四选项底部需要与 3 项一致对齐到 0.73；4 项实际比 3 项紧凑，间距 0.07
-    public static readonly double[] FourOptionCenters = [0.52, 0.59, 0.66, 0.73];
+    // 二选项：根据实跑日志校准到更容易首点命中的行内中心。
+    public static readonly double[] TwoOptionCenters = [0.635, 0.740];
+    public static readonly double[] ThreeOptionCenters = [0.55, 0.65, 0.73];
+    // 四选项：整体略下移，贴近 hover/retry 实测命中点。
+    public static readonly double[] FourOptionCenters = [0.535, 0.605, 0.675, 0.745];
 
     /// <summary>
     /// 选项从底部向上等间距排列，按 totalOptions 路由到对应配置

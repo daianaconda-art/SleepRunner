@@ -1,11 +1,13 @@
 {
   "_comment": "生存向交易关键词；命中商品名或效果文本任一即视为必买。保存即热重载（最快 2 秒生效）。",
+  "move_platform_option_index": 2,
   "prefer_strength_items": false,
   "keywords": [
     "抽奖券",
     "耐力",
     "潜质",
     "潜质点数",
+    "能量饮料",
     "甜甜圈",
     "体力",
     "生命",

@@ -24,6 +24,19 @@ public class TemplateFreeRecognitionTests
     }
 
     [Fact]
+    public void BattleAutoToggle_detects_small_gray_auto_icon_on_dark_saturated_bar_as_off()
+    {
+        using var screenshot = CreateDarkSaturatedBattleTopBarScreenshot();
+        DrawSmallGrayAutoIcon(screenshot);
+
+        string state = InvokeDetectAutoState(screenshot, out double satMean, out double valMean);
+
+        Assert.Equal("OffGray", state);
+        Assert.InRange(satMean, 65, 85);
+        Assert.InRange(valMean, 45, 65);
+    }
+
+    [Fact]
     public void TrainingFailRateOcr_detects_selected_row_from_red_marker_without_template()
     {
         using var screenshot = CreateScreenshotWithRegion(
@@ -131,6 +144,29 @@ public class TemplateFreeRecognitionTests
             Math.Max(1, (int)(height * regionH)));
         Cv2.Rectangle(screenshot, rect, color, thickness: -1);
         return screenshot;
+    }
+
+    private static Mat CreateDarkSaturatedBattleTopBarScreenshot()
+    {
+        const int width = 1706;
+        const int height = 960;
+        return new Mat(new Size(width, height), MatType.CV_8UC3, new Scalar(35, 45, 50));
+    }
+
+    private static void DrawSmallGrayAutoIcon(Mat screenshot)
+    {
+        Point Center(double x, double y) => new(
+            (int)(screenshot.Width * x),
+            (int)(screenshot.Height * y));
+
+        Scalar gray = new(150, 150, 150);
+        int thickness = Math.Max(2, screenshot.Width / 560);
+        Cv2.Line(screenshot, Center(0.807, 0.037), Center(0.818, 0.027), gray, thickness, LineTypes.AntiAlias);
+        Cv2.Line(screenshot, Center(0.818, 0.027), Center(0.833, 0.027), gray, thickness, LineTypes.AntiAlias);
+        Cv2.Line(screenshot, Center(0.833, 0.027), Center(0.842, 0.039), gray, thickness, LineTypes.AntiAlias);
+        Cv2.Line(screenshot, Center(0.844, 0.050), Center(0.833, 0.061), gray, thickness, LineTypes.AntiAlias);
+        Cv2.Line(screenshot, Center(0.833, 0.061), Center(0.818, 0.061), gray, thickness, LineTypes.AntiAlias);
+        Cv2.Line(screenshot, Center(0.818, 0.061), Center(0.809, 0.051), gray, thickness, LineTypes.AntiAlias);
     }
 
     private static string FindRepoRoot()

@@ -531,11 +531,52 @@ public class TrainingSelectHandler : IRaceHandler
         await KeyboardSimulator.SendKey(ctx.WindowHandle, KeyboardSimulator.VK_ESCAPE);
         await ctx.Wait(1200);
 
-        using var shot = ctx.CaptureScreen();
-        var point = MainMenuScreenChecks.ResolveRestMenuClickPoint(shot);
-        Log.Log($"Rest flow: click rest main-menu diamond at ({point.X:F3},{point.Y:F3})");
-        await ctx.ClickAtPercent(point.X, point.Y);
+        bool enteredByHotkey = await TryEnterRestByHotkeyAsync(ctx);
+        if (!enteredByHotkey)
+        {
+            using var shot = ctx.CaptureScreen();
+            var point = MainMenuScreenChecks.ResolveRestMenuClickPoint(shot);
+            Log.Log($"Rest flow: hotkey unavailable, click rest main-menu diamond at ({point.X:F3},{point.Y:F3})");
+            await ctx.ClickAtPercent(point.X, point.Y);
+            await ctx.Wait(1500);
+        }
 
-        await ctx.Wait(1500);
+        await TryHandleRestScreenImmediatelyAsync(ctx);
+    }
+
+    private static async Task<bool> TryEnterRestByHotkeyAsync(GameContext ctx)
+    {
+        Log.Log("Rest flow: send main-menu rest hotkey MainMenuRest.");
+        bool sent = await ctx.SendGameAction(GameActionKey.MainMenuRest);
+        if (!sent)
+        {
+            Log.Log("Rest flow: main-menu rest hotkey failed to send.");
+            return false;
+        }
+
+        await ctx.WaitUnscaled(800);
+
+        using var shot = ctx.CaptureScreen();
+        if (shot != null && !shot.Empty() && RestDecisionHandler.LooksLikeRestDecisionScreen(shot))
+        {
+            Log.Log("Rest flow: entered rest screen by hotkey.");
+            return true;
+        }
+
+        Log.Log("Rest flow: main-menu rest hotkey did not reach rest screen, fallback to mouse.");
+        return false;
+    }
+
+    private static async Task TryHandleRestScreenImmediatelyAsync(GameContext ctx)
+    {
+        using var shot = ctx.CaptureScreen();
+        if (shot == null || shot.Empty() || !RestDecisionHandler.LooksLikeRestDecisionScreen(shot))
+        {
+            Log.Log("Rest flow: rest screen not ready for immediate handoff, leave to next tick.");
+            return;
+        }
+
+        Log.Log("Rest flow: hand off to rest decision immediately.");
+        await new RestDecisionHandler().HandleAsync(ctx);
     }
 }

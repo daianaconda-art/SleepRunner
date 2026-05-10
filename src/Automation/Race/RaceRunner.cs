@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using OpenCvSharp;
+using SleepRunner.Automation.Race.Handlers.Trade;
 using SleepRunner.Utils;
 using SleepRunner.Vision;
 
@@ -38,6 +39,7 @@ public class RaceRunner : IGameTask
         _probeMoveOnly = probeMoveOnly;
         _autoMode = autoMode;
         Log.Log($"Race runner init: stepGate={stepGate != null}, once={exitAfterFirstHandledStep}, decisionOnly={decisionOnly}, probeMoveOnly={probeMoveOnly}, autoMode={autoMode}");
+        var tradeStageStateStore = new TradeStateStore();
 
         RegisterHandler(new Handlers.SkipHandler());
         RegisterHandler(new Handlers.GameFastForwardHandler());
@@ -47,12 +49,12 @@ public class RaceRunner : IGameTask
         RegisterHandler(new Handlers.EventHandler());
         RegisterHandler(new Handlers.CardSelectHandler());
         RegisterHandler(new Handlers.BattleHandler());
-        RegisterHandler(new Handlers.AppraiseAcceptHandler());
+        RegisterHandler(new Handlers.AppraiseAcceptHandler(tradeStageStateStore));
         RegisterHandler(new Handlers.BattleDefeatHandler());
         RegisterHandler(new Handlers.BattleLeaveHandler());
         RegisterHandler(new Handlers.CommissionHandler());
-        RegisterHandler(new Handlers.TradeAndAppraiseHandler());
-        RegisterHandler(new Handlers.TradePurchaseHandler());
+        RegisterHandler(new Handlers.TradeAndAppraiseHandler(null, tradeStageStateStore));
+        RegisterHandler(new Handlers.TradePurchaseHandler(null, tradeStageStateStore));
         RegisterHandler(new Handlers.RestDecisionHandler());
         RegisterHandler(new Handlers.JourneyEndHandler());
         RegisterHandler(new Handlers.MainMenuHandler());

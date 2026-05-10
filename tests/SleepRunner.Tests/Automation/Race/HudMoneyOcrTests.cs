@@ -25,6 +25,15 @@ public class HudMoneyOcrTests
     }
 
     [Fact]
+    public void TryResolveFromRawRegions_accepts_zero_from_primary_money_region()
+    {
+        var (success, money) = InvokeTryResolveFromRawRegions(["0", "", ""]);
+
+        Assert.True(success);
+        Assert.Equal(0, money);
+    }
+
+    [Fact]
     public void TryResolveFromRawRegions_returns_false_when_all_regions_are_unreadable()
     {
         var (success, money) = InvokeTryResolveFromRawRegions(["", "0", "BEsr"]);

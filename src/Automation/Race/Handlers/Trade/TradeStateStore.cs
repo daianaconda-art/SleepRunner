@@ -11,6 +11,8 @@ internal sealed class TradeStateStore
 {
     private static readonly TimeSpan StageStateTtl = TimeSpan.FromMinutes(15);
     private readonly string _stateFilePath;
+    private bool _loaded;
+    private bool _tradeVisited;
 
     public TradeStateStore()
     {
@@ -19,30 +21,47 @@ internal sealed class TradeStateStore
 
     public bool LoadVisited()
     {
+        if (_loaded)
+            return _tradeVisited;
+
         try
         {
             if (!File.Exists(_stateFilePath))
+            {
+                _loaded = true;
+                _tradeVisited = false;
                 return false;
+            }
 
             var json = File.ReadAllText(_stateFilePath);
             var state = JsonSerializer.Deserialize<TradeStageState>(json);
             if (state == null)
+            {
+                _loaded = true;
+                _tradeVisited = false;
                 return false;
+            }
 
             if (DateTime.UtcNow - state.UpdatedAtUtc > StageStateTtl)
             {
                 Logger.Log("[Race:Trade] Persisted trade state expired, reset.");
                 TryDeleteFile();
+                _loaded = true;
+                _tradeVisited = false;
                 return false;
             }
 
+            _loaded = true;
+            _tradeVisited = state.TradeVisited;
             if (state.TradeVisited)
                 Logger.Log("[Race:Trade] Persisted trade state loaded: tradeVisited=true");
-            return state.TradeVisited;
+            return _tradeVisited;
         }
         catch (Exception ex)
         {
             Logger.Log($"[Race:Trade] Load persisted trade state failed: {ex.Message}");
+            _loaded = true;
+            _tradeVisited = false;
             return false;
         }
     }
@@ -51,6 +70,9 @@ internal sealed class TradeStateStore
     {
         try
         {
+            _loaded = true;
+            _tradeVisited = visited;
+
             if (!visited)
             {
                 Logger.Log("[Race:Trade] Persisted trade state cleared (tradeVisited=false).");

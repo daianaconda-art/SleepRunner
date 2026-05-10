@@ -19,6 +19,7 @@ public class RestDecisionHandler : IRaceHandler
 {
     public string Name => "休息决策";
     public int Priority => 18;
+    private const int RestOptionHotkeySettleDelayMs = 350;
 
     // 休息界面右侧三行选项区域（用于检测是否进入休息分支）
     private const double OptionDetectX = 0.56;
@@ -159,9 +160,14 @@ public class RestDecisionHandler : IRaceHandler
         }
         else
         {
-            var point = ResolveOptionClickPoint(shot, idx);
-            await ctx.ClickAtPercent(point.X, point.Y);
-            await ctx.Wait(500);
+            bool selectedByHotkey = await TrySelectOptionByHotkeyAsync(ctx, idx);
+            if (!selectedByHotkey)
+            {
+                var point = ResolveOptionClickPoint(shot, idx);
+                Log.Log($"Rest decision: hotkey unavailable for option {idx + 1}, fallback click=({point.X:F3},{point.Y:F3}).");
+                await ctx.ClickAtPercent(point.X, point.Y);
+                await ctx.Wait(500);
+            }
         }
 
         Log.Log("Rest decision: click confirm rest button");
@@ -170,6 +176,24 @@ public class RestDecisionHandler : IRaceHandler
 
         // 任务完成后清缓存，下次进入重新决策
         _cachedPlan = null;
+    }
+
+    internal static bool LooksLikeRestDecisionScreen(Mat screenshot)
+    {
+        string optionText = ReadRestOptionText(screenshot, fastPath: true);
+        if (string.IsNullOrEmpty(optionText))
+            return false;
+
+        string confirmText = ReadRestConfirmText(screenshot, fastPath: true);
+        if (IsRestDecisionContext(optionText, confirmText))
+            return true;
+
+        string optionExt = ReadRestOptionText(screenshot, fastPath: false);
+        if (string.IsNullOrEmpty(optionExt))
+            return false;
+
+        string confirmExt = ReadRestConfirmText(screenshot, fastPath: false);
+        return IsRestDecisionContext(optionExt, confirmExt);
     }
 
     /// <summary>
@@ -511,6 +535,49 @@ public class RestDecisionHandler : IRaceHandler
             return 2;
 
         return -1;
+    }
+
+    private static GameActionKey ResolveRestOptionAction(int optionIdx)
+    {
+        return Math.Clamp(optionIdx, 0, 2) switch
+        {
+            0 => GameActionKey.RestSelectOption1,
+            1 => GameActionKey.RestSelectOption2,
+            _ => GameActionKey.RestSelectOption3,
+        };
+    }
+
+    private static async Task<bool> TrySelectOptionByHotkeyAsync(GameContext ctx, int optionIdx)
+    {
+        GameActionKey action = ResolveRestOptionAction(optionIdx);
+        Log.Log($"Rest decision: option {optionIdx + 1} send hotkey {action}.");
+
+        bool sent = await ctx.SendGameAction(action);
+        if (!sent)
+        {
+            Log.Log($"Rest decision: hotkey {action} failed to send.");
+            return false;
+        }
+
+        await ctx.WaitUnscaled(RestOptionHotkeySettleDelayMs);
+
+        using var afterShot = ctx.CaptureScreen();
+        if (afterShot == null || afterShot.Empty())
+        {
+            Log.Log($"Rest decision: hotkey {action} produced empty capture, fallback to mouse.");
+            return false;
+        }
+
+        string detailTitle = ReadRestDetailTitleText(afterShot);
+        int expandedIdx = ResolveExpandedRestOptionIndex(detailTitle);
+        if (expandedIdx == optionIdx)
+        {
+            Log.Log($"Rest decision: hotkey {action} confirmed by detail title '{detailTitle}'.");
+            return true;
+        }
+
+        Log.Log($"Rest decision: hotkey {action} did not confirm target option {optionIdx + 1} (detail='{detailTitle}').");
+        return false;
     }
 
     private static (double X, double Y) GetCalibratedOptionClickPoint(int optionIdx)

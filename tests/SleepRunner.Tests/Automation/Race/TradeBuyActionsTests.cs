@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using OpenCvSharp;
 using Xunit;
 
 namespace SleepRunner.Tests.Automation.Race;
@@ -57,7 +58,17 @@ public class TradeBuyActionsTests
     }
 
     [Fact]
-    public void TryClickBuyAsync_refreshes_budget_before_purchase_action()
+    public void TryOpenOfferDetailAsync_checks_definite_detail_signal_before_accepting_hotkey_snapshot()
+    {
+        MethodInfo moveNext = GetAsyncMoveNext("TryOpenOfferDetailAsync");
+        MethodBase[] calls = GetCalledMethods(moveNext).ToArray();
+
+        Assert.Contains(calls, IsHasDefiniteOfferDetailSignal);
+    }
+
+
+    [Fact]
+    public void TryClickBuyAsync_sends_purchase_without_preclick_money_refresh()
     {
         MethodInfo moveNext = GetAsyncMoveNext("TryClickBuyAsync");
         MethodBase[] calls = GetCalledMethods(moveNext).ToArray();
@@ -65,10 +76,10 @@ public class TradeBuyActionsTests
         int moneyIndex = Array.FindIndex(calls, IsReadCurrentMoney);
         int purchaseActionIndex = Array.FindIndex(calls, IsSendGameAction);
 
-        Assert.True(moneyIndex >= 0, "TryClickBuyAsync should read the current money from its pre-click snapshot.");
+        Assert.True(purchaseActionIndex >= 0, "TryClickBuyAsync should send the purchase action.");
         Assert.True(
-            moneyIndex < purchaseActionIndex,
-            "TryClickBuyAsync should refresh the budget before sending the purchase action so success verification can detect budget drops.");
+            moneyIndex < 0 || moneyIndex > purchaseActionIndex,
+            "TryClickBuyAsync should not run the expensive money OCR before sending the purchase action; the trade executor already made the initial budget read.");
     }
 
     [Fact]
@@ -172,6 +183,19 @@ public class TradeBuyActionsTests
         string state = InvokeReadBuyabilityState(offer);
 
         Assert.Equal("Purchased", state);
+    }
+
+    [Fact]
+    public void HasVisibleBuySignal_accepts_enabled_blue_buy_button_without_ocr_text()
+    {
+        using var screenshot = new Mat(1440, 2559, MatType.CV_8UC3, Scalar.Black);
+        Cv2.Rectangle(
+            screenshot,
+            new Rect((int)(2559 * 0.79), (int)(1440 * 0.87), (int)(2559 * 0.14), (int)(1440 * 0.06)),
+            new Scalar(235, 134, 31),
+            thickness: -1);
+
+        Assert.True(InvokeHasVisibleBuySignal(screenshot));
     }
 
     private static MethodInfo GetAsyncMoveNext(string methodName)
@@ -313,6 +337,12 @@ public class TradeBuyActionsTests
                method.DeclaringType?.FullName == "SleepRunner.Automation.Race.Handlers.Trade.TradePurchasePolicy";
     }
 
+    private static bool IsHasDefiniteOfferDetailSignal(MethodBase method)
+    {
+        return method.Name == "HasDefiniteOfferDetailSignal" &&
+               method.DeclaringType?.FullName == "SleepRunner.Automation.Race.Handlers.Trade.TradeBuyActions";
+    }
+
     private static bool IsShouldDeferUnownedDetailScan(MethodBase method)
     {
         return method.Name == "ShouldDeferUnownedDetailScan" &&
@@ -334,11 +364,22 @@ public class TradeBuyActionsTests
     {
         Type actionsType = GetTradeBuyActionsType();
         MethodInfo method = actionsType.GetMethod(
-                                "ReadBuyabilityState",
+            "ReadBuyabilityState",
                                 BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
                             ?? throw new Xunit.Sdk.XunitException("TradeBuyActions.ReadBuyabilityState was not found.");
 
         return method.Invoke(null, [offer])!.ToString()!;
+    }
+
+    private static bool InvokeHasVisibleBuySignal(Mat screenshot)
+    {
+        Type actionsType = GetTradeBuyActionsType();
+        MethodInfo method = actionsType.GetMethod(
+                                "HasVisibleBuySignal",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("TradeBuyActions.HasVisibleBuySignal was not found.");
+
+        return (bool)method.Invoke(null, [screenshot])!;
     }
 
     private static object CreateTradeOffer()

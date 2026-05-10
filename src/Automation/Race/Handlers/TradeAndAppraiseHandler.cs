@@ -21,14 +21,19 @@ public class TradeAndAppraiseHandler : IRaceHandler
 
     private readonly ITradeFlowExecutor _tradeExecutor;
     private readonly TradeStateStore _stateStore;
-    private bool _tradeVisitedInCurrentStage;
 
     public TradeAndAppraiseHandler(
         ITradeFlowExecutor? tradeExecutor = null)
+        : this(tradeExecutor, new TradeStateStore())
+    {
+    }
+
+    internal TradeAndAppraiseHandler(
+        ITradeFlowExecutor? tradeExecutor,
+        TradeStateStore stateStore)
     {
         _tradeExecutor = tradeExecutor ?? new DefaultTradeFlowExecutor();
-        _stateStore = new TradeStateStore();
-        _tradeVisitedInCurrentStage = _stateStore.LoadVisited();
+        _stateStore = stateStore;
     }
 
     public bool CanHandle(FrameContext frame)
@@ -53,7 +58,7 @@ public class TradeAndAppraiseHandler : IRaceHandler
 
     public string DescribeDecision(FrameContext frame)
     {
-        return _tradeVisitedInCurrentStage
+        return TradeVisitedInCurrentStage
             ? "Trade/Appraise stage: trade already visited -> click appraise"
             : "Trade/Appraise stage: enter trade first, then return and click appraise";
     }
@@ -68,17 +73,17 @@ public class TradeAndAppraiseHandler : IRaceHandler
             ? TradeStageGeometry.CommissionY
             : TradeStageGeometry.DetectOptionClickY(before, isTrade: false, fallbackY: TradeStageGeometry.CommissionY);
 
-        Log.Log($"FLOW Handle start: tradeVisited={_tradeVisitedInCurrentStage}, tradeClickY={tradeClickY:F3}, appraiseClickY={appraiseClickY:F3}");
+        bool tradeVisited = TradeVisitedInCurrentStage;
+        Log.Log($"FLOW Handle start: tradeVisited={tradeVisited}, tradeClickY={tradeClickY:F3}, appraiseClickY={appraiseClickY:F3}");
 
-        if (!_tradeVisitedInCurrentStage)
+        if (!tradeVisited)
         {
             // 第一阶段：进入交易做购买
             Log.Log("FLOW Phase=enter-trade: trade not visited yet, try to enter trade branch.");
             bool enteredTrade = await TryEnterTradeBranchAsync(ctx, tradeClickY);
             if (!enteredTrade)
             {
-                _tradeVisitedInCurrentStage = false;
-                _stateStore.SaveVisited(false);
+                TradeVisitedInCurrentStage = false;
                 Log.Log("FLOW Phase=enter-trade: FAILED to verify trade screen after retries, will retry on next loop.");
                 return;
             }
@@ -89,8 +94,7 @@ public class TradeAndAppraiseHandler : IRaceHandler
 
             if (!TradeExecutionResultPolicy.ShouldExitTrade(execResult))
             {
-                _tradeVisitedInCurrentStage = true;
-                _stateStore.SaveVisited(true);
+                TradeVisitedInCurrentStage = true;
                 Log.Log("FLOW Phase=execute-trade: manual required on trade screen, stay here and wait for user handling.");
                 return;
             }
@@ -100,16 +104,14 @@ public class TradeAndAppraiseHandler : IRaceHandler
             bool finishedToAppraise = await TryExitTradeAndClickCommissionAsync(ctx, appraiseClickY);
             if (finishedToAppraise)
             {
-                _tradeVisitedInCurrentStage = false;
-                _stateStore.SaveVisited(false);
+                TradeVisitedInCurrentStage = false;
                 Log.Log("FLOW DONE: trade -> appraise completed in one pass.");
                 return;
             }
 
             using var afterTradeClick = ctx.CaptureScreen();
             bool stillStageMenu = afterTradeClick != null && !afterTradeClick.Empty() && CanHandle(new FrameContext(afterTradeClick));
-            _tradeVisitedInCurrentStage = true;
-            _stateStore.SaveVisited(true);
+            TradeVisitedInCurrentStage = true;
             if (stillStageMenu)
                 Log.Log("FLOW Phase=exit-trade: still on two-choice menu, keep tradeVisited=true; next loop will only click appraise.");
             else
@@ -123,14 +125,18 @@ public class TradeAndAppraiseHandler : IRaceHandler
         if (!appraiseClicked)
         {
             Log.Log("FLOW Phase=click-appraise: click verification FAILED, keep tradeVisited=true for retry.");
-            _tradeVisitedInCurrentStage = true;
-            _stateStore.SaveVisited(true);
+            TradeVisitedInCurrentStage = true;
             return;
         }
 
-        _tradeVisitedInCurrentStage = false;
-        _stateStore.SaveVisited(false);
+        TradeVisitedInCurrentStage = false;
         Log.Log("FLOW DONE: appraise click confirmed, state reset.");
+    }
+
+    private bool TradeVisitedInCurrentStage
+    {
+        get => _stateStore.LoadVisited();
+        set => _stateStore.SaveVisited(value);
     }
 
     /// <summary>

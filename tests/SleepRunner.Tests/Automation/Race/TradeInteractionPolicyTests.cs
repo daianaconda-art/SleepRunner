@@ -39,6 +39,62 @@ public class TradeInteractionPolicyTests
     }
 
     [Fact]
+    public void EvaluatePurchaseConfirmation_accepts_any_positive_budget_drop_when_price_ocr_is_high()
+    {
+        bool accepted = InvokePurchaseAccepted(
+            beforeSlotText: "slot-3-before",
+            hasConfirmSignal: false,
+            knownBudget: 46,
+            price: 30,
+            moneyAfter: 26,
+            visibleBuy: true,
+            grayDisabled: false,
+            slotAfter: "slot-3-before");
+
+        Assert.True(accepted);
+    }
+
+    [Fact]
+    public void PurchaseVerification_skips_money_ocr_when_budget_is_unknown()
+    {
+        bool shouldRead = InvokeShouldReadMoneyForPurchaseVerification(int.MaxValue, price: 20);
+
+        Assert.False(shouldRead);
+    }
+
+    [Fact]
+    public void PurchaseVerification_reads_money_ocr_when_budget_drop_can_be_checked()
+    {
+        bool shouldRead = InvokeShouldReadMoneyForPurchaseVerification(150, price: 20);
+
+        Assert.True(shouldRead);
+    }
+
+    [Fact]
+    public void HotkeyDetailSelection_rejects_ready_but_unowned_detail()
+    {
+        bool shouldUse = InvokeShouldUseHotkeyDetail(detailReady: true, ownedByRequestedSlot: false, requireOwnedAfterClick: true);
+
+        Assert.False(shouldUse);
+    }
+
+    [Fact]
+    public void HotkeyDetailSelection_allows_unowned_detail_when_ownership_is_not_required()
+    {
+        bool shouldUse = InvokeShouldUseHotkeyDetail(detailReady: true, ownedByRequestedSlot: false, requireOwnedAfterClick: false);
+
+        Assert.True(shouldUse);
+    }
+
+    [Fact]
+    public void HotkeyDetailSelection_accepts_ready_owned_detail()
+    {
+        bool shouldUse = InvokeShouldUseHotkeyDetail(detailReady: true, ownedByRequestedSlot: true, requireOwnedAfterClick: true);
+
+        Assert.True(shouldUse);
+    }
+
+    [Fact]
     public void EvaluateBuyability_marks_gray_button_as_disabled()
     {
         string state = InvokeBuyabilityState(
@@ -80,6 +136,30 @@ public class TradeInteractionPolicyTests
         return (bool)method.Invoke(
             null,
             [beforeSlotText, hasConfirmSignal, knownBudget, price, moneyAfter, visibleBuy, grayDisabled, slotAfter])!;
+    }
+
+    private static bool InvokeShouldReadMoneyForPurchaseVerification(int knownBudget, int price)
+    {
+        Type policyType = LoadSleepRunnerAssembly().GetType("SleepRunner.Automation.Race.Handlers.Trade.TradeInteractionPolicy")
+            ?? throw new Xunit.Sdk.XunitException("TradeInteractionPolicy type was not found.");
+        MethodInfo method = policyType.GetMethod(
+                                "ShouldReadMoneyForPurchaseVerification",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("TradeInteractionPolicy.ShouldReadMoneyForPurchaseVerification was not found.");
+
+        return (bool)method.Invoke(null, [knownBudget, price])!;
+    }
+
+    private static bool InvokeShouldUseHotkeyDetail(bool detailReady, bool ownedByRequestedSlot, bool requireOwnedAfterClick)
+    {
+        Type policyType = LoadSleepRunnerAssembly().GetType("SleepRunner.Automation.Race.Handlers.Trade.TradeInteractionPolicy")
+            ?? throw new Xunit.Sdk.XunitException("TradeInteractionPolicy type was not found.");
+        MethodInfo method = policyType.GetMethod(
+                                "ShouldUseHotkeyDetail",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("TradeInteractionPolicy.ShouldUseHotkeyDetail was not found.");
+
+        return (bool)method.Invoke(null, [detailReady, ownedByRequestedSlot, requireOwnedAfterClick])!;
     }
 
     private static string InvokeBuyabilityState(bool visibleBuy, bool grayDisabled, bool purchasedState)

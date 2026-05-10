@@ -148,6 +148,8 @@ public sealed class UserSettings
     /// </summary>
     public void ApplyToRaceConfig()
     {
+        EventsProfile = PromoteLegacyDefaultEventsProfile();
+
         RaceConfig.FailRateThreshold = FailRateThreshold;
         RaceConfig.WaitMultiplier = WaitMultiplier;
         RaceConfig.ClickSpeedMultiplier = ClickSpeedMultiplier;
@@ -161,6 +163,19 @@ public sealed class UserSettings
         RaceProfileManager.SetCardsProfile(CardsProfile);
         RaceProfileManager.SetTradeProfile(TradeProfile);
         TrainingRuleProfileManager.SetCurrentProfile(TrainingProfile);
+    }
+
+    private string PromoteLegacyDefaultEventsProfile()
+    {
+        if (!string.Equals(EventsProfile, RaceProfileManager.DefaultProfileName, StringComparison.OrdinalIgnoreCase))
+            return EventsProfile;
+        if (string.Equals(TrainingProfile, TrainingRuleProfileManager.DefaultProfileName, StringComparison.OrdinalIgnoreCase))
+            return EventsProfile;
+        if (!File.Exists(RaceProfileManager.ResolveEventsPath(TrainingProfile)))
+            return EventsProfile;
+
+        Logger.Log($"[Settings] Promoting legacy default events profile '{EventsProfile}' -> '{TrainingProfile}'.");
+        return TrainingProfile;
     }
 
     /// <summary>

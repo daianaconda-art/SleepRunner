@@ -262,8 +262,15 @@ internal static class HudMoneyOcr
 
         if (Regex.IsMatch(normalized, @"^\d+$"))
         {
-            if (!int.TryParse(normalized, out int digitsOnly) || digitsOnly <= 0)
+            if (!int.TryParse(normalized, out int digitsOnly))
                 return false;
+
+            if (digitsOnly == 0)
+            {
+                money = 0;
+                score = 0;
+                return true;
+            }
 
             money = digitsOnly;
             score = ScoreValue(money, pureDigits: true, hasHudNoise: false);

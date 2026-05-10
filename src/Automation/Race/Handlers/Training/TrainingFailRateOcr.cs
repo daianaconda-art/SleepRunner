@@ -57,6 +57,10 @@ internal static class TrainingFailRateOcr
         if (screenshot == null || screenshot.Empty()) return UnknownFailRateFallback;
 
         var regions = new List<(double X, double Y, double W, double H)>();
+        double rowY = trainingOptions[Math.Clamp(selectedIndex, 0, trainingOptions.Length - 1)].Y;
+        // 调用方已经知道目标行；先读该行局部区域，避免被别行/底部红字抢走。
+        regions.Add((0.80, Math.Clamp(rowY - 0.03, 0.0, 0.95), 0.16, 0.07));
+        regions.Add((0.76, Math.Clamp(rowY - 0.04, 0.0, 0.94), 0.20, 0.09));
         if (TryFindFailRateMarkerByColor(screenshot, out var markerCenter, out double redRatio))
         {
             double matchYPct = (double)markerCenter.Y / screenshot.Height;
@@ -70,11 +74,6 @@ internal static class TrainingFailRateOcr
         {
             Logger.Log("[Race:TrainingSelect]   Fail rate marker color miss, use selected-row fixed OCR regions");
         }
-
-        // 红色标记附近没读到时，用已选行固定区域兜底
-        double rowY = trainingOptions[Math.Clamp(selectedIndex, 0, trainingOptions.Length - 1)].Y;
-        regions.Add((0.80, Math.Clamp(rowY - 0.03, 0.0, 0.95), 0.16, 0.07));
-        regions.Add((0.76, Math.Clamp(rowY - 0.04, 0.0, 0.94), 0.20, 0.09));
 
         var candidates = new List<int>();
         var candidateFreq = new Dictionary<int, int>();
@@ -278,6 +277,9 @@ internal static class TrainingFailRateOcr
             .Replace('捌', '8')
             .Replace('Ｓ', '5')
             .Replace('S', '5');
+
+        // 训练等级 "Lv.1" 常被 OCR 和失败率混到一起；先剥掉，避免把等级误当 1%。
+        normalized = Regex.Replace(normalized, @"L[Vv][\.:：]?\s*\d{1,2}", "", RegexOptions.IgnoreCase);
 
         foreach (Match m in Regex.Matches(normalized, @"(\d{1,3})"))
         {

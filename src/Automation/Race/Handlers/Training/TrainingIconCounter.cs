@@ -41,6 +41,8 @@ internal static class TrainingIconCounter
         int checkSize = Math.Max(1, (int)(w * IconCheckRadius));
         string labelPrefix = string.IsNullOrEmpty(rowLabel) ? "" : $"[{rowLabel}] ";
         var scans = new List<SlotScan>(MaxIconSlots);
+        bool sawIcon = false;
+        int consecutiveNonIcons = 0;
 
         for (int slot = 0; slot < MaxIconSlots; slot++)
         {
@@ -61,6 +63,15 @@ internal static class TrainingIconCounter
             using var region = new Mat(hsv, new Rect(x1, y1, x2 - x1, y2 - y1));
             SlotScan scan = ScanSlot(region, slot, slotY);
             scans.Add(scan);
+            if (scan.Verdict == SlotVerdict.Icon)
+            {
+                sawIcon = true;
+                consecutiveNonIcons = 0;
+            }
+            else
+            {
+                consecutiveNonIcons++;
+            }
 
             string verdict = scan.Verdict switch
             {
@@ -86,6 +97,12 @@ internal static class TrainingIconCounter
                     scan.ValMean,
                     scan.SatStd,
                     scan.ValStd);
+            }
+
+            if (sawIcon && consecutiveNonIcons >= 2)
+            {
+                Logger.Log($"[Race:TrainingSelect] {labelPrefix}Slot scan early-stop after {consecutiveNonIcons} trailing non-icon slots.");
+                break;
             }
         }
 

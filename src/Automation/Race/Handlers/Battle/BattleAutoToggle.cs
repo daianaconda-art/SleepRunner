@@ -32,6 +32,7 @@ internal sealed class BattleAutoToggle
     private const double AutoBtnY = 0.042;
     private const int AutoPointOffsetX = 12;
     private const int AutoPointOffsetY = 10;
+    private const double GrayButtonMinRatio = 0.018;
 
     /// <summary>
     /// 自动按钮状态判断：灰色=关闭，彩色=开启
@@ -118,7 +119,7 @@ internal sealed class BattleAutoToggle
         int grayPixels = Cv2.CountNonZero(mask);
         int total = Math.Max(1, hsvRegion.Width * hsvRegion.Height);
         double ratio = (double)grayPixels / total;
-        return grayPixels >= 24 && ratio >= 0.08;
+        return grayPixels >= 24 && ratio >= GrayButtonMinRatio;
     }
 
 }

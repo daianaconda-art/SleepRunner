@@ -84,4 +84,27 @@ public class RaceUserPolicyCardProfileTests
             RaceUserPolicy.ForceReload();
         }
     }
+
+    [Fact]
+    public void Survival_profile_tolerates_life_force_ocr_missing_leading_character()
+    {
+        string originalCardsProfile = RaceProfileManager.CurrentCardsProfile;
+
+        try
+        {
+            RaceProfileManager.SetCardsProfile("survival");
+            RaceUserPolicy.ForceReload();
+
+            int lifeForceRank = RaceUserPolicy.ResolvePriorityRank("自身的生命力增加8％");
+            int missingLeadingCharacterRank = RaceUserPolicy.ResolvePriorityRank("自身的命力增加8％");
+
+            Assert.Equal(0, lifeForceRank);
+            Assert.Equal(0, missingLeadingCharacterRank);
+        }
+        finally
+        {
+            RaceProfileManager.SetCardsProfile(originalCardsProfile);
+            RaceUserPolicy.ForceReload();
+        }
+    }
 }

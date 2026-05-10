@@ -15,6 +15,8 @@ public class MovePlatformHandler : IRaceHandler
 {
     public string Name => "地区移动月台";
     public int Priority => 4;
+    private const double PreviewPickMaxAgeMs = 3000;
+    private (int Count, double PickY, string Reason, DateTime CapturedUtc)? _lastPreviewPick;
 
     // 左上角阶段标题区域（用于限定只在地区移动页触发）
     private const double TitleX = 0.00;
@@ -99,6 +101,7 @@ public class MovePlatformHandler : IRaceHandler
         string headerText = ReadPlatformHeaderText(screenshot);
         string rightText = ReadRightOptionText(screenshot);
         var (count, clickY, reason) = ResolveOptionPick(screenshot);
+        _lastPreviewPick = (count, clickY, reason, DateTime.UtcNow);
         int optionIndex = Math.Abs(clickY - SecondOptionY) < 0.02 ? 2 : 1;
         return $"Move stage: header='{headerText}', right='{rightText}' -> options={count}, pick option {optionIndex} ({reason}) at ({FirstOptionX:F2},{clickY:F3})";
     }
@@ -124,6 +127,19 @@ public class MovePlatformHandler : IRaceHandler
 
         // 第一步：按选项数量+基调决定点击行
         var (optionCount, pickY, reason) = ResolveOptionPick(shot);
+        if (_lastPreviewPick is { } previewPick)
+        {
+            double ageMs = (DateTime.UtcNow - previewPick.CapturedUtc).TotalMilliseconds;
+            (optionCount, pickY, reason) = StabilizeOptionPick(
+                optionCount,
+                pickY,
+                reason,
+                previewPick.Count,
+                previewPick.PickY,
+                previewPick.Reason,
+                ageMs);
+        }
+
         int optionIndex = Math.Abs(pickY - SecondOptionY) < 0.02 ? 2 : 1;
         Log.Log($"Execute move platform: options={optionCount}, pick option {optionIndex} ({reason}) at ({FirstOptionX:F2},{pickY:F3}).");
         await ctx.ClickAtPercent(FirstOptionX, pickY);
@@ -281,6 +297,26 @@ public class MovePlatformHandler : IRaceHandler
         }
 
         return (1, FirstOptionY, $"single-option line1='{texts[0]}' line2='{texts[1]}'");
+    }
+
+    private static (int Count, double PickY, string Reason) StabilizeOptionPick(
+        int currentCount,
+        double currentPickY,
+        string currentReason,
+        int cachedCount,
+        double cachedPickY,
+        string cachedReason,
+        double cachedAgeMs)
+    {
+        if (currentCount < 2 &&
+            cachedCount >= 2 &&
+            cachedAgeMs >= 0 &&
+            cachedAgeMs <= PreviewPickMaxAgeMs)
+        {
+            return (cachedCount, cachedPickY, $"cached-preview {cachedReason}; current={currentReason}");
+        }
+
+        return (currentCount, currentPickY, currentReason);
     }
 
     /// <summary>

@@ -23,6 +23,22 @@ public class TradePurchasePolicyTests
     }
 
     [Fact]
+    public void SurvivalTradeProfile_buys_energy_drink_by_name()
+    {
+        string profilePath = Path.Combine(AppContext.BaseDirectory, "assets", "trade", "survival.json");
+        using var doc = JsonDocument.Parse(File.ReadAllText(profilePath));
+        string[] keywords = doc.RootElement
+            .GetProperty("keywords")
+            .EnumerateArray()
+            .Select(e => e.GetString())
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s!)
+            .ToArray();
+
+        Assert.Contains("能量饮料", keywords);
+    }
+
+    [Fact]
     public void AttackTradeProfile_buys_only_strength_training_books_not_all_books()
     {
         string profilePath = Path.Combine(AppContext.BaseDirectory, "assets", "trade", "attack.json");
@@ -125,6 +141,45 @@ public class TradePurchasePolicyTests
         SetProperty(offerType, strengthOffer, "SlotText", "");
 
         Assert.True(InvokeIsStrongDetailPurchaseCandidate(strengthOffer));
+    }
+
+    [Fact]
+    public void IsStrongDetailPurchaseCandidate_accepts_reliable_keyword_slot_when_effect_ocr_is_empty()
+    {
+        object energyDrink = CreateTradeOffer(
+            slotIndex: 2,
+            price: 20,
+            isMustBuy: true);
+        Type offerType = energyDrink.GetType();
+        SetProperty(offerType, energyDrink, "SlotText", "能量饮料20");
+        SetProperty(offerType, energyDrink, "EffectText", "");
+        SetProperty(offerType, energyDrink, "HasReliableSlotText", true);
+
+        Assert.True(InvokeIsStrongDetailPurchaseCandidate(energyDrink));
+    }
+
+    [Fact]
+    public void SelectSlotText_prefers_row_when_detail_title_does_not_match_requested_slot()
+    {
+        string selected = InvokeSelectSlotText("能量饮料20", "not0因n了俨bJS然孓");
+
+        Assert.Equal("能量饮料20", selected);
+    }
+
+    [Theory]
+    [InlineData("目匕量饣欠*斗一丿20", "能量饮料")]
+    [InlineData("能量饮料．·。乸20", "能量饮料")]
+    public void NormalizeTradeSignalText_maps_energy_drink_ocr_noise(string raw, string expectedFragment)
+    {
+        string normalized = InvokeNormalizeTradeSignalText(raw);
+
+        Assert.Contains(expectedFragment, normalized);
+    }
+
+    [Fact]
+    public void ContainsTradeItemKeyword_accepts_energy_drink_ocr_noise()
+    {
+        Assert.True(InvokeContainsTradeItemKeyword("目匕量饣欠*斗一丿20"));
     }
 
     [Fact]
@@ -245,6 +300,42 @@ public class TradePurchasePolicyTests
         return (bool)method.Invoke(
             null,
             [hasReliableSlotText, isPotentialPoint, isMustBuy, isStrengthIncrease, isStaminaRecover])!;
+    }
+
+    private static string InvokeSelectSlotText(string rowSlotText, string detailTitle)
+    {
+        Type policyType = Type.GetType("SleepRunner.Automation.Race.Handlers.Trade.TradePurchasePolicy, SleepRunner")
+            ?? throw new Xunit.Sdk.XunitException("TradePurchasePolicy type was not found.");
+        MethodInfo method = policyType.GetMethod(
+                                "SelectSlotText",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("TradePurchasePolicy.SelectSlotText was not found.");
+
+        return (string)method.Invoke(null, [rowSlotText, detailTitle])!;
+    }
+
+    private static string InvokeNormalizeTradeSignalText(string raw)
+    {
+        Type policyType = Type.GetType("SleepRunner.Automation.Race.Handlers.Trade.TradePurchasePolicy, SleepRunner")
+            ?? throw new Xunit.Sdk.XunitException("TradePurchasePolicy type was not found.");
+        MethodInfo method = policyType.GetMethod(
+                                "NormalizeTradeSignalText",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("TradePurchasePolicy.NormalizeTradeSignalText was not found.");
+
+        return (string)method.Invoke(null, [raw])!;
+    }
+
+    private static bool InvokeContainsTradeItemKeyword(string raw)
+    {
+        Type policyType = Type.GetType("SleepRunner.Automation.Race.Handlers.Trade.TradePurchasePolicy, SleepRunner")
+            ?? throw new Xunit.Sdk.XunitException("TradePurchasePolicy type was not found.");
+        MethodInfo method = policyType.GetMethod(
+                                "ContainsTradeItemKeyword",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("TradePurchasePolicy.ContainsTradeItemKeyword was not found.");
+
+        return (bool)method.Invoke(null, [raw])!;
     }
 
     private static object CreateTradeOffer(

@@ -36,11 +36,9 @@ internal static class TradeInteractionPolicy
         if (hasConfirmSignal)
             return true;
 
-        if (knownBudget > 0 &&
-            knownBudget != int.MaxValue &&
-            price > 0 &&
+        if (ShouldReadMoneyForPurchaseVerification(knownBudget, price) &&
             moneyAfter > 0 &&
-            moneyAfter <= knownBudget - price)
+            moneyAfter < knownBudget)
         {
             return true;
         }
@@ -52,6 +50,18 @@ internal static class TradeInteractionPolicy
                visibleBuy &&
                !string.IsNullOrEmpty(beforeSlotText) &&
                !string.Equals(beforeSlotText, slotAfter, StringComparison.Ordinal);
+    }
+
+    internal static bool ShouldReadMoneyForPurchaseVerification(int knownBudget, int price)
+    {
+        return knownBudget > 0 &&
+               knownBudget != int.MaxValue &&
+               price > 0;
+    }
+
+    internal static bool ShouldUseHotkeyDetail(bool detailReady, bool ownedByRequestedSlot, bool requireOwnedAfterClick)
+    {
+        return detailReady && (!requireOwnedAfterClick || ownedByRequestedSlot);
     }
 
     private static bool LooksPurchased(string text)

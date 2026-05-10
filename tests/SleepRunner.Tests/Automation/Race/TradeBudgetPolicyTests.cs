@@ -6,6 +6,7 @@ namespace SleepRunner.Tests.Automation.Race;
 public class TradeBudgetPolicyTests
 {
     [Theory]
+    [InlineData(0, 0)]
     [InlineData(120, 120)]
     [InlineData(30, 30)]
     public void ResolveExecutionBudget_keeps_detected_budget_when_available(int detectedBudget, int expectedBudget)
@@ -16,7 +17,6 @@ public class TradeBudgetPolicyTests
     }
 
     [Theory]
-    [InlineData(0)]
     [InlineData(-1)]
     public void ResolveExecutionBudget_falls_back_to_unknown_budget_when_ocr_fails(int detectedBudget)
     {
@@ -26,9 +26,10 @@ public class TradeBudgetPolicyTests
     }
 
     [Theory]
+    [InlineData(0, true, 0)]
     [InlineData(120, true, 120)]
     [InlineData(30, true, 30)]
-    public void TryResolveBudget_accepts_positive_detected_budget(int detectedBudget, bool expectedSuccess, int expectedBudget)
+    public void TryResolveBudget_accepts_detected_budget(int detectedBudget, bool expectedSuccess, int expectedBudget)
     {
         var (success, budget) = InvokeTryResolveBudget(detectedBudget);
 
@@ -37,7 +38,6 @@ public class TradeBudgetPolicyTests
     }
 
     [Theory]
-    [InlineData(0)]
     [InlineData(-1)]
     public void TryResolveBudget_rejects_missing_or_invalid_budget(int detectedBudget)
     {

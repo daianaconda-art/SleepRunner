@@ -17,9 +17,7 @@ internal static class TradePurchasePolicy
 
     public static TradeOffer BuildOfferFromShot(OpenCvSharp.Mat detailShot, int slotIndex, string rowSlotText, string detailTitle)
     {
-        string slotText = TradeDetailOcr.IsReliableSlotText(detailTitle)
-            ? detailTitle
-            : rowSlotText;
+        string slotText = SelectSlotText(rowSlotText, detailTitle);
         bool hasReliableSlotText = TradeDetailOcr.IsReliableSlotText(slotText);
         int price = TradeDetailOcr.ReadOfferPrice(detailShot, slotIndex, rowSlotText);
         string effectText = TradeDetailOcr.ReadEffectText(detailShot);
@@ -160,6 +158,13 @@ internal static class TradePurchasePolicy
         bool hasEffectText = TradeStageOcr.CountChineseChars(offer.EffectText) >= 2;
         bool hasPrice = offer.Price > 0 && offer.Price < 10000;
         bool hasEnabledBuyButton = offer.HasBuyButtonVisible && !offer.IsBuyDisabled;
+        bool hasReliableSlotSignal = offer.HasReliableSlotText &&
+                                     TradeStageOcr.CountChineseChars(offer.SlotText) >= 2 &&
+                                     (ContainsTradeItemKeyword(offer.SlotText) ||
+                                      offer.IsPotentialPoint ||
+                                      offer.IsMustBuy ||
+                                      offer.IsStrengthIncrease ||
+                                      offer.IsStaminaRecover);
         bool hasPurchaseSignal = offer.IsPotentialPoint ||
                                  offer.IsMustBuy ||
                                  offer.IsStrengthIncrease ||
@@ -167,7 +172,24 @@ internal static class TradePurchasePolicy
                                  offer.StrengthGain > 0 ||
                                  offer.StaminaRecover > 0;
 
-        return hasEnabledBuyButton && hasPrice && hasEffectText && hasPurchaseSignal;
+        return hasEnabledBuyButton && hasPrice && (hasEffectText || hasReliableSlotSignal) && hasPurchaseSignal;
+    }
+
+    private static string SelectSlotText(string rowSlotText, string detailTitle)
+    {
+        bool rowReliable = TradeDetailOcr.IsReliableSlotText(rowSlotText);
+        bool detailReliable = TradeDetailOcr.IsReliableSlotText(detailTitle);
+        bool rowHasActionableHint = rowReliable &&
+                                    (ContainsTradeItemKeyword(rowSlotText) ||
+                                     TradeDetailOcr.ExtractPrice(rowSlotText) > 0);
+
+        if (rowHasActionableHint &&
+            (!detailReliable || !TradeSlotOwnershipPolicy.BelongsToSlot(rowSlotText, detailTitle)))
+        {
+            return rowSlotText;
+        }
+
+        return detailReliable ? detailTitle : rowSlotText;
     }
 
     public static List<TradeOffer> BuildPurchaseQueue(List<TradeOffer> offers, bool preferStrengthItems, int budget)
@@ -264,6 +286,7 @@ internal static class TradePurchasePolicy
     {
         if (string.IsNullOrEmpty(text))
             return false;
+        text = NormalizeTradeSignalText(text);
         return text.Contains("药水", StringComparison.Ordinal) ||
                text.Contains("秘笈", StringComparison.Ordinal) ||
                text.Contains("抽奖券", StringComparison.Ordinal) ||
@@ -274,6 +297,7 @@ internal static class TradePurchasePolicy
                text.Contains("意大利面", StringComparison.Ordinal) ||
                text.Contains("牛肉", StringComparison.Ordinal) ||
                text.Contains("牛奶", StringComparison.Ordinal) ||
+               text.Contains("能量饮料", StringComparison.Ordinal) ||
                text.Contains("料理食物", StringComparison.Ordinal) ||
                text.Contains("沙拉", StringComparison.Ordinal) ||
                text.Contains("甜甜圈", StringComparison.Ordinal) ||
@@ -361,14 +385,16 @@ internal static class TradePurchasePolicy
         if (IsStaminaRecoverByKeyword(slotText, effectText))
             return true;
 
+        string normalizedSlotText = NormalizeTradeSignalText(slotText);
+        string normalizedEffectText = NormalizeTradeSignalText(effectText);
         foreach (var kw in RaceUserPolicy.TradeKeywords)
         {
             if (string.IsNullOrWhiteSpace(kw))
                 continue;
 
             string keyword = kw.Trim();
-            bool inEffect = !string.IsNullOrEmpty(effectText) && effectText.Contains(keyword, StringComparison.Ordinal);
-            bool inSlot = allowSlotTextKeyword && !string.IsNullOrEmpty(slotText) && slotText.Contains(keyword, StringComparison.Ordinal);
+            bool inEffect = !string.IsNullOrEmpty(normalizedEffectText) && normalizedEffectText.Contains(keyword, StringComparison.Ordinal);
+            bool inSlot = allowSlotTextKeyword && !string.IsNullOrEmpty(normalizedSlotText) && normalizedSlotText.Contains(keyword, StringComparison.Ordinal);
             if (inEffect || inSlot)
                 return true;
         }
@@ -444,7 +470,15 @@ internal static class TradePurchasePolicy
         if (string.IsNullOrEmpty(raw))
             return "";
         string text = TradeStageOcr.NormalizeOcr(raw);
+        text = NormalizeCommonTradeItemNoise(text);
         text = Regex.Replace(text, @"\d+/\d+", "");
+        return text;
+    }
+
+    private static string NormalizeCommonTradeItemNoise(string text)
+    {
+        text = Regex.Replace(text, @"目匕量[^0-9]{0,8}(饣欠|饮)[^0-9]{0,8}斗", "能量饮料");
+        text = Regex.Replace(text, @"能量饮料[．·。、丶乸]+", "能量饮料");
         return text;
     }
 }

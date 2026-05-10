@@ -1,5 +1,7 @@
 using OpenCvSharp;
 using SleepRunner.Automation.Race.Handlers.Commission;
+using SleepRunner.Automation.Race.Handlers.Trade;
+using SleepRunner.Input;
 using SleepRunner.Recognition;
 using SleepRunner.Utils;
 using SleepRunner.Vision;
@@ -10,6 +12,17 @@ public class AppraiseAcceptHandler : IRaceHandler
 {
     public string Name => "评鉴战接受";
     public int Priority => 13;
+    private readonly TradeStateStore _tradeStateStore;
+
+    public AppraiseAcceptHandler()
+        : this(new TradeStateStore())
+    {
+    }
+
+    internal AppraiseAcceptHandler(TradeStateStore tradeStateStore)
+    {
+        _tradeStateStore = tradeStateStore;
+    }
 
     private static readonly (double X, double Y, double W, double H)[] StageTitleRegions =
     [
@@ -32,6 +45,8 @@ public class AppraiseAcceptHandler : IRaceHandler
 
     private const double AcceptBtnX = 0.90;
     private const double AcceptBtnY = 0.90;
+    private const int AcceptHotkeySettleDelayMs = 700;
+    private const double HotkeyNoReactionMeanDiffThreshold = 2.0;
 
     public bool CanHandle(FrameContext frame)
     {
@@ -69,14 +84,72 @@ public class AppraiseAcceptHandler : IRaceHandler
         string titleText = ReadBestText(screenshot, StageTitleRegions);
         string detailText = ReadBestText(screenshot, PrepareRegions);
         string acceptText = ReadBestText(screenshot, AcceptTextRegions);
-        return $"AppraisePrepare: title='{titleText}', detail='{detailText}', accept='{acceptText}' -> click accept";
+        return $"AppraisePrepare: title='{titleText}', detail='{detailText}', accept='{acceptText}' -> press Alt+Space, fallback click if unchanged";
     }
 
     public async Task HandleAsync(GameContext ctx)
     {
-        Log.Log("Appraise prepare: click accept.");
+        using var beforeHotkey = ctx.CaptureScreen();
+        Log.Log("Appraise prepare: reset trade stage state and press accept hotkey (Alt+Space).");
+        _tradeStateStore.SaveVisited(false);
+        bool hotkeySent = await ctx.SendGameAction(GameActionKey.AppraiseAccept);
+        await ctx.WaitUnscaled(AcceptHotkeySettleDelayMs);
+        using var afterHotkey = ctx.CaptureScreen();
+        bool stillOnAcceptDetailScreen = afterHotkey != null &&
+                                         !afterHotkey.Empty() &&
+                                         CommissionScreenChecks.IsAppraiseAcceptDetailScreen(afterHotkey);
+        bool fallback = ShouldFallbackAfterHotkeyAttempt(beforeHotkey, afterHotkey, stillOnAcceptDetailScreen);
+
+        if (!fallback)
+        {
+            string result = hotkeySent
+                ? "accept hotkey changed the screen"
+                : "accept hotkey changed the screen despite an aborted key sequence";
+            Log.Log($"Appraise prepare: {result}; skip mouse fallback.");
+            await ctx.Wait(600);
+            return;
+        }
+
+        string fallbackReason = hotkeySent
+            ? "accept hotkey had no confirmed effect"
+            : "accept hotkey sequence aborted and no screen change was confirmed";
+        Log.Log($"Appraise prepare: {fallbackReason}; fallback click accept.");
+
         await ctx.ClickAtPercent(AcceptBtnX, AcceptBtnY);
         await ctx.Wait(1300);
+    }
+
+    private static bool ShouldFallbackAfterHotkeyAttempt(
+        Mat? beforeHotkey,
+        Mat? afterHotkey,
+        bool stillOnAcceptDetailScreen)
+    {
+        if (afterHotkey == null || afterHotkey.Empty())
+            return true;
+
+        if (stillOnAcceptDetailScreen)
+            return true;
+
+        return beforeHotkey != null &&
+               !beforeHotkey.Empty() &&
+               ShouldFallbackToMouseAfterHotkey(beforeHotkey, afterHotkey);
+    }
+
+    private static bool ShouldFallbackToMouseAfterHotkey(Mat beforeHotkey, Mat afterHotkey)
+    {
+        if (beforeHotkey.Empty() || afterHotkey.Empty())
+            return true;
+
+        if (beforeHotkey.Width != afterHotkey.Width ||
+            beforeHotkey.Height != afterHotkey.Height ||
+            beforeHotkey.Type() != afterHotkey.Type())
+            return false;
+
+        using var diff = new Mat();
+        Cv2.Absdiff(beforeHotkey, afterHotkey, diff);
+        Scalar mean = Cv2.Mean(diff);
+        double meanDiff = (mean.Val0 + mean.Val1 + mean.Val2) / 3.0;
+        return meanDiff <= HotkeyNoReactionMeanDiffThreshold;
     }
 
     private static string ReadBestText(

@@ -90,8 +90,27 @@ internal static class TradeBuyActions
                 text.Contains("买", StringComparison.Ordinal) ||
                 text.Contains("购", StringComparison.Ordinal))
                 return true;
+
+            if (LooksLikeEnabledBlueButton(screenshot, r))
+                return true;
         }
         return false;
+    }
+
+    private static bool LooksLikeEnabledBlueButton(Mat screenshot, (double X, double Y, double W, double H) region)
+    {
+        var rect = TradeDetailOcr.ToPixelRect(screenshot, region.X, region.Y, region.W, region.H);
+        if (rect.Width < 4 || rect.Height < 4)
+            return false;
+
+        using var roi = new Mat(screenshot, rect);
+        using var hsv = new Mat();
+        using var blueMask = new Mat();
+        Cv2.CvtColor(roi, hsv, ColorConversionCodes.BGR2HSV);
+        Cv2.InRange(hsv, new Scalar(90, 70, 90), new Scalar(118, 255, 255), blueMask);
+
+        double blueRatio = Cv2.CountNonZero(blueMask) / (double)(rect.Width * rect.Height);
+        return blueRatio >= 0.04;
     }
 
     /// <summary>
@@ -127,6 +146,13 @@ internal static class TradeBuyActions
         }
 
         return false;
+    }
+
+    public static bool HasDefiniteOfferDetailSignal(Mat screenshot)
+    {
+        return IsDetailExpanded(screenshot) ||
+               HasVisibleBuySignal(screenshot) ||
+               IsBuyButtonGrayDisabled(screenshot);
     }
 
     /// <summary>
@@ -165,7 +191,8 @@ internal static class TradeBuyActions
             else if (IsOfferDetailReady(hotkeyShot))
             {
                 bool owned = IsCurrentDetailOwnedBySlot(hotkeyShot, slotIndex);
-                if (!requireOwnedAfterClick || owned)
+                bool definiteDetail = owned || HasDefiniteOfferDetailSignal(hotkeyShot);
+                if (TradeInteractionPolicy.ShouldUseHotkeyDetail(definiteDetail, owned, requireOwnedAfterClick))
                 {
                     Logger.Log($"[Race:Trade] Trade detail opened by hotkey {slotAction}, owned={owned}.");
                     var clone = hotkeyShot.Clone();
@@ -197,12 +224,16 @@ internal static class TradeBuyActions
             return null;
         }
 
-        if (IsOfferDetailReady(shot) &&
-            (!requireOwnedAfterClick || IsCurrentDetailOwnedBySlot(shot, slotIndex)))
+        if (IsOfferDetailReady(shot))
         {
-            var clone = shot.Clone();
-            shot.Dispose();
-            return clone;
+            bool owned = IsCurrentDetailOwnedBySlot(shot, slotIndex);
+            bool definiteDetail = owned || HasDefiniteOfferDetailSignal(shot);
+            if (TradeInteractionPolicy.ShouldUseHotkeyDetail(definiteDetail, owned, requireOwnedAfterClick))
+            {
+                var clone = shot.Clone();
+                shot.Dispose();
+                return clone;
+            }
         }
 
         shot.Dispose();
@@ -226,16 +257,6 @@ internal static class TradeBuyActions
             bool grayDisabled = IsBuyButtonGrayDisabled(shot);
             bool purchasedState = IsPurchasedStateText(TradeDetailOcr.ReadSlotText(shot, target.SlotIndex));
             TradeBuyabilityState buyability = TradeInteractionPolicy.EvaluateBuyability(visibleBuy, grayDisabled, purchasedState);
-            int effectiveKnownBudget = knownBudget;
-            if (effectiveKnownBudget == int.MaxValue)
-            {
-                int refreshedBudget = TradeBudgetPolicy.ResolveExecutionBudget(TradeDetailOcr.ReadCurrentMoney(shot));
-                if (refreshedBudget != int.MaxValue)
-                {
-                    effectiveKnownBudget = refreshedBudget;
-                    Logger.Log($"[Race:Trade] Trade executor: refreshed pre-buy budget={effectiveKnownBudget} for slot {target.SlotIndex + 1}.");
-                }
-            }
 
             if (buyability != TradeBuyabilityState.Enabled)
             {
@@ -247,7 +268,7 @@ internal static class TradeBuyActions
             if (keySent)
             {
                 await ctx.Wait(450);
-                bool accepted = await VerifyBuyClickAcceptedAsync(ctx, target, effectiveKnownBudget);
+                bool accepted = await VerifyBuyClickAcceptedAsync(ctx, target, knownBudget);
                 Logger.Log($"[Race:Trade] Trade executor: buy key action sent, attempt={attempt}, accepted={accepted}");
                 if (accepted)
                     return true;
@@ -261,7 +282,7 @@ internal static class TradeBuyActions
             {
                 await ctx.ClickAtPercent(point.X, point.Y);
                 await ctx.Wait(450);
-                bool accepted = await VerifyBuyClickAcceptedAsync(ctx, target, effectiveKnownBudget);
+                bool accepted = await VerifyBuyClickAcceptedAsync(ctx, target, knownBudget);
                 Logger.Log($"[Race:Trade] Trade executor: buy fixed fallback clicked at ({point.X:F3},{point.Y:F3}), attempt={attempt}, accepted={accepted}");
                 if (accepted)
                     return true;
@@ -296,7 +317,9 @@ internal static class TradeBuyActions
                 continue;
 
             bool hasConfirmSignal = HasConfirmSignal(shot);
-            int moneyAfter = TradeDetailOcr.ReadCurrentMoney(shot);
+            int moneyAfter = TradeInteractionPolicy.ShouldReadMoneyForPurchaseVerification(knownBudget, target.Price)
+                ? TradeDetailOcr.ReadCurrentMoney(shot)
+                : 0;
             bool visibleBuy = HasVisibleBuySignal(shot);
             bool grayDisabled = IsBuyButtonGrayDisabled(shot);
             string slotAfter = TradePurchasePolicy.NormalizeTradeSignalText(TradeDetailOcr.ReadSlotText(shot, target.SlotIndex));
@@ -314,7 +337,7 @@ internal static class TradeBuyActions
                 string reason = hasConfirmSignal
                     ? "confirm-signal"
                     : (knownBudget > 0 && knownBudget != int.MaxValue && target.Price > 0 &&
-                       moneyAfter > 0 && moneyAfter <= knownBudget - target.Price)
+                       moneyAfter > 0 && moneyAfter < knownBudget)
                         ? $"budget-drop {knownBudget}->{moneyAfter}"
                         : $"slot-state '{beforeSlotText}' -> '{slotAfter}'";
                 Logger.Log($"[Race:Trade] Trade executor verify: strong success signal={reason}.");
