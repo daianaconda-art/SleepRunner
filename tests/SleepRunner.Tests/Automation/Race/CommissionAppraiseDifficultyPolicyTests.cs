@@ -37,6 +37,23 @@ public class CommissionAppraiseDifficultyPolicyTests
         Assert.Equal(expectedStart, shouldStart);
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, true)]
+    public void Red_commission_card_reward_marker_requires_battle_commission_and_red_detection(
+        bool isBattleCommissionPopup,
+        bool isRedDifficult,
+        bool expectedMarker)
+    {
+        bool shouldMark = InvokeShouldMarkRedCommissionCardReward(
+            isBattleCommissionPopup,
+            isRedDifficult);
+
+        Assert.Equal(expectedMarker, shouldMark);
+    }
+
     private static object ParseMode(string name)
     {
         Type enumType = Type.GetType("SleepRunner.Automation.Race.AppraiseDifficultyMode, SleepRunner")
@@ -63,6 +80,18 @@ public class CommissionAppraiseDifficultyPolicyTests
                                 [typeof(bool)])
                             ?? throw new Xunit.Sdk.XunitException("ShouldStartDifficultyBasedPopup was not found.");
         return (bool)method.Invoke(null, [isRedDifficult])!;
+    }
+
+    private static bool InvokeShouldMarkRedCommissionCardReward(
+        bool isBattleCommissionPopup,
+        bool isRedDifficult)
+    {
+        Type type = GetPolicyType();
+        MethodInfo method = type.GetMethod(
+                                "ShouldMarkRedCommissionCardReward",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("ShouldMarkRedCommissionCardReward was not found.");
+        return (bool)method.Invoke(null, [isBattleCommissionPopup, isRedDifficult])!;
     }
 
     private static Type GetPolicyType()

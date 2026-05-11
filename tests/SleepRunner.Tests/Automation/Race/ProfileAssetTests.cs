@@ -35,6 +35,14 @@ public class ProfileAssetTests
         AssertAmbushDecision(Path.Combine(assetsDir, "survival.json"), recommendedOption: 2, fallbackOption: 1);
     }
 
+    [Fact]
+    public void Fei_ambush_event_tries_option_two_then_falls_back_to_option_three()
+    {
+        string assetsDir = Path.Combine(AppContext.BaseDirectory, "assets", "events");
+
+        AssertAmbushDecision(Path.Combine(assetsDir, "fei.json"), recommendedOption: 2, fallbackOption: 3);
+    }
+
     private static void AssertAmbushDecision(string profilePath, int recommendedOption, int? fallbackOption)
     {
         Assert.True(File.Exists(profilePath), $"Missing events profile at {profilePath}");

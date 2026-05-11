@@ -75,6 +75,103 @@ public class CardSelectHandlerTests
         static string ReadRegion(Mat _, double x, double y, double w, double h) => "";
     }
 
+    [Fact]
+    public void Red_commission_fei_first_reward_clicks_unselected_when_no_life_leech_totem_candidate()
+    {
+        string originalCardsProfile = RaceProfileManager.CurrentCardsProfile;
+
+        try
+        {
+            RaceProfileManager.SetCardsProfile("fei");
+            RaceUserPolicy.ForceReload();
+            var handler = new CardSelectHandler(ReadRegion);
+
+            bool shouldClickUnselected = InvokeShouldClickUnselectedForRedCommissionFirstReward(
+                handler,
+                [
+                    "\u81ea\u8eab\u7684\u66b4\u51fb\u4f24\u5bb3\u589e\u52a016\uff05",
+                    "\u81ea\u8eab\u7684\u653b\u51fb\u529b\u589e\u52a016\uff05",
+                    "\u81ea\u8eab\u7684\u66b4\u51fb\u7387\u589e\u52a016\uff05",
+                ],
+                hasPendingRedCommissionReward: true);
+
+            Assert.True(shouldClickUnselected);
+        }
+        finally
+        {
+            RaceProfileManager.SetCardsProfile(originalCardsProfile);
+            RaceUserPolicy.ForceReload();
+        }
+
+        static string ReadRegion(Mat _, double x, double y, double w, double h) => "";
+    }
+
+    [Fact]
+    public void Red_commission_fei_first_reward_keeps_normal_selection_when_life_leech_totem_candidate_exists()
+    {
+        string originalCardsProfile = RaceProfileManager.CurrentCardsProfile;
+
+        try
+        {
+            RaceProfileManager.SetCardsProfile("fei");
+            RaceUserPolicy.ForceReload();
+            var handler = new CardSelectHandler(ReadRegion);
+
+            bool shouldClickUnselected = InvokeShouldClickUnselectedForRedCommissionFirstReward(
+                handler,
+                [
+                    "\u81ea\u8eab\u7684\u66b4\u51fb\u4f24\u5bb3\u589e\u52a016\uff05",
+                    "\u53e4\u4ee3\u6551\u63f4\u8005\u7684\u56fe\u817e \u961f\u5458\u5168\u4f53 \u9996\u6b21\u6218\u6597\u5f00\u59cb\u65f6\uff0c\u81ea\u8eab\u7684\u751f\u547d\u529b\u5438\u53d6\u7387\u589e\u52a015\uff05",
+                    "\u81ea\u8eab\u7684\u653b\u51fb\u529b\u589e\u52a016\uff05",
+                ],
+                hasPendingRedCommissionReward: true);
+
+            Assert.False(shouldClickUnselected);
+        }
+        finally
+        {
+            RaceProfileManager.SetCardsProfile(originalCardsProfile);
+            RaceUserPolicy.ForceReload();
+        }
+
+        static string ReadRegion(Mat _, double x, double y, double w, double h) => "";
+    }
+
+    [Theory]
+    [InlineData("fei", false)]
+    [InlineData("default", true)]
+    public void Red_commission_first_reward_does_not_change_normal_card_selection_without_full_gate(
+        string cardsProfile,
+        bool hasPendingRedCommissionReward)
+    {
+        string originalCardsProfile = RaceProfileManager.CurrentCardsProfile;
+
+        try
+        {
+            RaceProfileManager.SetCardsProfile(cardsProfile);
+            RaceUserPolicy.ForceReload();
+            var handler = new CardSelectHandler(ReadRegion);
+
+            bool shouldClickUnselected = InvokeShouldClickUnselectedForRedCommissionFirstReward(
+                handler,
+                [
+                    "\u81ea\u8eab\u7684\u66b4\u51fb\u4f24\u5bb3\u589e\u52a016\uff05",
+                    "\u81ea\u8eab\u7684\u653b\u51fb\u529b\u589e\u52a016\uff05",
+                    "\u81ea\u8eab\u7684\u66b4\u51fb\u7387\u589e\u52a016\uff05",
+                ],
+                hasPendingRedCommissionReward);
+
+            Assert.False(shouldClickUnselected);
+        }
+        finally
+        {
+            RaceProfileManager.SetCardsProfile(originalCardsProfile);
+            RaceUserPolicy.ForceReload();
+        }
+
+        static string ReadRegion(Mat _, double x, double y, double w, double h) => "";
+    }
+
     private static int[] InvokeBuildPriorityAttemptOrder(CardSelectHandler handler, string[] texts)
     {
         MethodInfo method = typeof(CardSelectHandler).GetMethod(
@@ -87,6 +184,19 @@ public class CardSelectHandlerTests
         return ((System.Collections.IEnumerable)result!)
             .Cast<int>()
             .ToArray();
+    }
+
+    private static bool InvokeShouldClickUnselectedForRedCommissionFirstReward(
+        CardSelectHandler handler,
+        string[] texts,
+        bool hasPendingRedCommissionReward)
+    {
+        MethodInfo method = typeof(CardSelectHandler).GetMethod(
+                                "ShouldClickUnselectedForRedCommissionFirstReward",
+                                BindingFlags.Instance | BindingFlags.NonPublic)
+                            ?? throw new Xunit.Sdk.XunitException("CardSelectHandler.ShouldClickUnselectedForRedCommissionFirstReward was not found.");
+
+        return (bool)method.Invoke(handler, [texts, hasPendingRedCommissionReward])!;
     }
 
     private static bool IsRegion(

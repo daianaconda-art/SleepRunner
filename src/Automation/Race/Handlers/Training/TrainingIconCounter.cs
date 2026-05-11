@@ -10,6 +10,7 @@ internal static class TrainingIconCounter
     public const double IconSpacing = 0.08;
     public const int MaxIconSlots = 8;
     public const double IconCheckRadius = 0.015;
+    private const double SelectedRowGuardBandY = 0.012;
 
     public static bool DebugDumpEnabled = false;
 
@@ -43,10 +44,17 @@ internal static class TrainingIconCounter
         var scans = new List<SlotScan>(MaxIconSlots);
         bool sawIcon = false;
         int consecutiveNonIcons = 0;
+        double? selectedRowStopY = TryResolveSelectedRowStopY(screenshot);
 
         for (int slot = 0; slot < MaxIconSlots; slot++)
         {
             double slotY = IconStartY + slot * IconSpacing;
+            if (selectedRowStopY.HasValue && slotY >= selectedRowStopY.Value)
+            {
+                Logger.Log($"[Race:TrainingSelect] {labelPrefix}Slot scan stopped before selected row marker (slotY={slotY:F3}, stopY={selectedRowStopY.Value:F3}).");
+                break;
+            }
+
             int cx = (int)(w * IconCenterX);
             int cy = (int)(h * slotY);
 
@@ -107,6 +115,16 @@ internal static class TrainingIconCounter
         }
 
         return SummarizeScans(scans, labelPrefix);
+    }
+
+    private static double? TryResolveSelectedRowStopY(Mat screenshot)
+    {
+        if (!TrainingFailRateOcr.TryFindFailRateMarkerYPct(screenshot, out double markerYPct))
+        {
+            return null;
+        }
+
+        return Math.Max(IconStartY, markerYPct - SelectedRowGuardBandY);
     }
 
     private static SlotScan ScanSlot(Mat hsvRegion, int slot, double slotY)
@@ -320,7 +338,80 @@ internal static class TrainingIconCounter
 
         return Math.Abs(coloredCenterX - regionCenterX) <= centerTolerance &&
                Math.Abs(coloredCenterY - regionCenterY) <= centerTolerance &&
+               HasRoundedCornerProfile(hsvRegion, hsv => hsv.Item1 > 60 && hsv.Item2 > 55) &&
+               HasCircularSectorSupport(hsvRegion, hsv => hsv.Item1 > 60 && hsv.Item2 > 55) &&
                IsPixelCloudCompact(coloredPixels, sumX, sumY, sumXX, sumYY, sumXY, maxElongation: 1.55);
+    }
+
+    private static bool HasRoundedCornerProfile(Mat hsvRegion, Func<Vec3b, bool> isForeground)
+    {
+        int cornerSize = Math.Max(2, (int)(Math.Min(hsvRegion.Cols, hsvRegion.Rows) * 0.20));
+        int hotCorners = 0;
+
+        foreach ((int StartX, int StartY) corner in new[]
+                 {
+                     (0, 0),
+                     (hsvRegion.Cols - cornerSize, 0),
+                     (0, hsvRegion.Rows - cornerSize),
+                     (hsvRegion.Cols - cornerSize, hsvRegion.Rows - cornerSize),
+                 })
+        {
+            int foreground = 0;
+            int area = 0;
+            for (int y = corner.StartY; y < corner.StartY + cornerSize; y++)
+            {
+                for (int x = corner.StartX; x < corner.StartX + cornerSize; x++)
+                {
+                    area++;
+                    if (isForeground(hsvRegion.At<Vec3b>(y, x)))
+                    {
+                        foreground++;
+                    }
+                }
+            }
+
+            if (foreground / (double)Math.Max(1, area) > 0.35)
+            {
+                hotCorners++;
+            }
+        }
+
+        return hotCorners <= 1;
+    }
+
+    private static bool HasCircularSectorSupport(Mat hsvRegion, Func<Vec3b, bool> isForeground)
+    {
+        const int sectorCount = 8;
+        const int requiredCoveredSectors = 7;
+        bool[] sectors = new bool[sectorCount];
+        double centerX = (hsvRegion.Cols - 1) / 2.0;
+        double centerY = (hsvRegion.Rows - 1) / 2.0;
+        double minRadius = Math.Min(hsvRegion.Cols, hsvRegion.Rows) * 0.36;
+
+        for (int y = 0; y < hsvRegion.Rows; y++)
+        {
+            for (int x = 0; x < hsvRegion.Cols; x++)
+            {
+                Vec3b hsv = hsvRegion.At<Vec3b>(y, x);
+                if (!isForeground(hsv))
+                {
+                    continue;
+                }
+
+                double dx = x - centerX;
+                double dy = y - centerY;
+                if ((dx * dx) + (dy * dy) < minRadius * minRadius)
+                {
+                    continue;
+                }
+
+                double angle = Math.Atan2(dy, dx);
+                int sector = (int)Math.Floor((angle + Math.PI) / (2 * Math.PI) * sectorCount);
+                sectors[Math.Clamp(sector, 0, sectorCount - 1)] = true;
+            }
+        }
+
+        return sectors.Count(covered => covered) >= requiredCoveredSectors;
     }
 
     private static bool IsPixelCloudCompact(

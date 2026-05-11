@@ -60,6 +60,45 @@ public class TrainingIconCounterTests
     }
 
     [Fact]
+    public void CountCircularIcons_stops_after_two_icons_when_next_slot_is_compact_colored_background_hair()
+    {
+        using var screenshot = new Mat(new Size(1000, 1000), MatType.CV_8UC3, new Scalar(30, 30, 30));
+        DrawGrayIcon(screenshot, slot: 0);
+        DrawGrayIcon(screenshot, slot: 1);
+        DrawCompactColoredHairPatch(screenshot, slot: 2);
+
+        int count = CountCircularIcons(screenshot);
+
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
+    public void CountCircularIcons_counts_realistic_gray_portrait_icons_with_bright_corner_detail()
+    {
+        using var screenshot = new Mat(new Size(1000, 1000), MatType.CV_8UC3, new Scalar(30, 30, 30));
+        DrawGrayPortraitIconWithBrightCornerDetail(screenshot, slot: 0);
+        DrawGrayPortraitIconWithBrightCornerDetail(screenshot, slot: 1);
+
+        int count = CountCircularIcons(screenshot);
+
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
+    public void CountCircularIcons_stops_before_selected_row_marker_to_avoid_row_artifact()
+    {
+        using var screenshot = new Mat(new Size(1000, 1000), MatType.CV_8UC3, new Scalar(30, 30, 30));
+        DrawGrayPortraitIconWithBrightCornerDetail(screenshot, slot: 0);
+        DrawGrayPortraitIconWithBrightCornerDetail(screenshot, slot: 1);
+        DrawMutedColoredRowArtifact(screenshot, slot: 2);
+        DrawSelectedRowFailRateMarker(screenshot, yPct: 0.294);
+
+        int count = CountCircularIcons(screenshot);
+
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
     public void CountCircularIcons_stops_after_two_icons_when_next_slot_is_gray_diagonal_noise()
     {
         using var screenshot = new Mat(new Size(1000, 1000), MatType.CV_8UC3, new Scalar(30, 30, 30));
@@ -136,6 +175,28 @@ public class TrainingIconCounterTests
         Cv2.Circle(screenshot, center, Math.Max(2, radius / 3), new Scalar(100, 100, 100), thickness: -1);
     }
 
+    private static void DrawGrayPortraitIconWithBrightCornerDetail(Mat screenshot, int slot)
+    {
+        var center = SlotCenter(screenshot, slot);
+        int radius = (int)(screenshot.Width * 0.014);
+        int brightRadius = Math.Max(3, radius / 2);
+
+        Cv2.Circle(screenshot, center, radius, new Scalar(214, 214, 214), thickness: -1);
+        Cv2.Circle(screenshot, center, Math.Max(2, radius / 3), new Scalar(112, 112, 112), thickness: -1);
+        Cv2.Circle(
+            screenshot,
+            new Point(center.X - radius + 2, center.Y - radius + 2),
+            brightRadius,
+            new Scalar(236, 236, 236),
+            thickness: -1);
+        Cv2.Circle(
+            screenshot,
+            new Point(center.X + radius - 2, center.Y - radius + 2),
+            brightRadius,
+            new Scalar(226, 226, 226),
+            thickness: -1);
+    }
+
     private static void DrawBrightVerticalNoise(Mat screenshot, int slot)
     {
         var center = SlotCenter(screenshot, slot);
@@ -172,6 +233,50 @@ public class TrainingIconCounterTests
             new Point(center.X + halfSize, center.Y - halfSize),
             new Scalar(230, 170, 80),
             thickness: halfSize + halfSize / 3);
+    }
+
+    private static void DrawMutedColoredRowArtifact(Mat screenshot, int slot)
+    {
+        var center = SlotCenter(screenshot, slot);
+        int radius = (int)(screenshot.Width * 0.014);
+        Cv2.Circle(screenshot, center, radius, new Scalar(145, 108, 64), thickness: -1);
+        Cv2.Circle(screenshot, center, Math.Max(2, radius / 3), new Scalar(55, 55, 55), thickness: -1);
+    }
+
+    private static void DrawSelectedRowFailRateMarker(Mat screenshot, double yPct)
+    {
+        int x = (int)(screenshot.Width * 0.905);
+        int y = (int)(screenshot.Height * yPct);
+        Cv2.Rectangle(
+            screenshot,
+            new Rect(x - 14, y - 7, 28, 14),
+            new Scalar(42, 50, 218),
+            thickness: -1);
+    }
+
+    private static void DrawCompactColoredHairPatch(Mat screenshot, int slot)
+    {
+        var center = SlotCenter(screenshot, slot);
+        int halfSize = (int)(screenshot.Width * 0.015);
+
+        Cv2.Line(
+            screenshot,
+            new Point(center.X - halfSize, center.Y - halfSize),
+            new Point(center.X + halfSize, center.Y + halfSize),
+            new Scalar(170, 125, 80),
+            thickness: halfSize);
+        Cv2.Line(
+            screenshot,
+            new Point(center.X - halfSize / 2, center.Y + halfSize),
+            new Point(center.X + halfSize, center.Y - halfSize / 2),
+            new Scalar(115, 85, 55),
+            thickness: halfSize / 2);
+        Cv2.Line(
+            screenshot,
+            new Point(center.X - halfSize, center.Y),
+            new Point(center.X + halfSize / 2, center.Y + halfSize),
+            new Scalar(205, 165, 120),
+            thickness: Math.Max(2, halfSize / 4));
     }
 
     private static void DrawGrayDiagonalNoise(Mat screenshot, int slot)

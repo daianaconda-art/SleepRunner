@@ -45,6 +45,18 @@ internal static class TrainingFailRateOcr
         return 4;
     }
 
+    internal static bool TryFindFailRateMarkerYPct(Mat screenshot, out double yPct)
+    {
+        yPct = 0;
+        if (!TryFindFailRateMarkerByColor(screenshot, out var markerCenter, out _))
+        {
+            return false;
+        }
+
+        yPct = (double)markerCenter.Y / screenshot.Height;
+        return true;
+    }
+
     /// <summary>
     /// OCR 识别失败率数值（百分比整数）
     /// </summary>

@@ -9,7 +9,7 @@ public class RaceUserPolicyCardProfileTests
     public void Card_profiles_share_the_same_special_card_whitelist()
     {
         string originalCardsProfile = RaceProfileManager.CurrentCardsProfile;
-        string[] profiles = ["default", "attack", "crit_first", "crit_damage_first", "survival"];
+        string[] profiles = ["default", "attack", "crit_first", "crit_damage_first", "survival", "fei"];
 
         try
         {
@@ -77,6 +77,38 @@ public class RaceUserPolicyCardProfileTests
 
             Assert.Equal(0, critDamageRank);
             Assert.Equal(1, critRateRank);
+        }
+        finally
+        {
+            RaceProfileManager.SetCardsProfile(originalCardsProfile);
+            RaceUserPolicy.ForceReload();
+        }
+    }
+
+    [Fact]
+    public void Fei_profile_prioritizes_life_leech_totem_before_crit_damage_and_attack()
+    {
+        string originalCardsProfile = RaceProfileManager.CurrentCardsProfile;
+
+        try
+        {
+            RaceProfileManager.SetCardsProfile("fei");
+            RaceUserPolicy.ForceReload();
+
+            var order = RaceUserPolicy.CardPriorityOrder;
+            int lifeLeechRank = RaceUserPolicy.ResolvePriorityRank("古代救援者的图腾 队员全体 首次战斗开始时，自身的生命力吸取率增加15％");
+            int critDamageRank = RaceUserPolicy.ResolvePriorityRank("自身的暴击伤害增加16％");
+            int attackRank = RaceUserPolicy.ResolvePriorityRank("自身的攻击力增加16％");
+            int critRateRank = RaceUserPolicy.ResolvePriorityRank("自身的暴击率增加16％");
+
+            Assert.True(order.Count >= 3);
+            Assert.Equal("生命力吸取率", order[0].Label);
+            Assert.Equal("暴击伤害", order[1].Label);
+            Assert.Equal("攻击力", order[2].Label);
+            Assert.Equal(0, lifeLeechRank);
+            Assert.Equal(1, critDamageRank);
+            Assert.Equal(2, attackRank);
+            Assert.Equal(-1, critRateRank);
         }
         finally
         {

@@ -2,28 +2,30 @@
 
 These instructions apply to the whole repository.
 
-## Runtime loop after changes
+## Runtime verification after changes
 
 When a task changes runtime behavior, scripts, automation flow, UI behavior, or anything that the user will immediately run:
 
-1. Stop any running `SleepRunner` GUI, watcher, or `dotnet run` instance before rebuilding.
-2. Rebuild from the project entrypoint the user uses.
-3. Start a fresh run from that new build.
-4. Check the new runtime result in the latest log.
+1. Do not stop a running `SleepRunner` GUI, watcher, or `dotnet run` instance unless the user explicitly asks for it.
+2. Do not start a fresh runtime session unless the user explicitly asks for it.
+3. Prefer code-level verification such as focused tests and `dotnet build` when appropriate.
+4. Leave final hands-on runtime verification, including fresh runs and latest-log inspection, to the user.
 
-## Build and run source of truth
+## Build source of truth
 
-For final verification, use the same project entrypoint the user uses:
+For compile verification, use the project entrypoint the user uses:
+
+`dotnet build .\src\SleepRunner.csproj`
+
+If the user asks for a fresh runtime verification, use:
 
 `dotnet run --project .\src\SleepRunner.csproj`
 
-Do not rely on stale binaries or `--skip-build` for the final rerun after code changes.
-
-If a quick compile-only check is needed during iteration, `dotnet build .\src\SleepRunner.csproj` is fine, but the final rerun must still come from `dotnet run --project .\src\SleepRunner.csproj`.
+Do not rely on stale binaries or `--skip-build` when the user specifically requests a fresh runtime verification.
 
 ## Log check
 
-After the fresh rerun, inspect the newly written latest runtime log before concluding the task. The usual location is:
+Only inspect runtime logs after code changes when the user asks for runtime verification or log analysis. The usual location is:
 
 `src/bin/x64/Debug/net8.0-windows10.0.17763.0/assets/logs/latest.log`
 

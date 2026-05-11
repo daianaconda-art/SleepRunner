@@ -36,6 +36,17 @@ public class CommissionHandler : IRaceHandler
     private string _lastPopupText = "";
     private PopupDecisionMode _lastPopupMode = PopupDecisionMode.None;
     private DateTime _lastPopupUtc = DateTime.MinValue;
+    private readonly CommissionCardRewardStateStore _cardRewardStateStore;
+
+    public CommissionHandler()
+        : this(new CommissionCardRewardStateStore())
+    {
+    }
+
+    internal CommissionHandler(CommissionCardRewardStateStore cardRewardStateStore)
+    {
+        _cardRewardStateStore = cardRewardStateStore ?? throw new ArgumentNullException(nameof(cardRewardStateStore));
+    }
 
     public bool CanHandle(FrameContext frame)
     {
@@ -216,6 +227,7 @@ public class CommissionHandler : IRaceHandler
     {
         Mat? current = initialShot;
         const int maxRounds = 3;
+        bool rewardMarkerWritten = false;
         for (int round = 1; round <= maxRounds; round++)
         {
             if (current == null || current.Empty())
@@ -237,7 +249,18 @@ public class CommissionHandler : IRaceHandler
             {
                 bool isRedDifficult = CommissionPopupChecks.DetectRedDifficult(current, popupText, out double redRatio, out bool hasDifficultKeyword);
                 bool shouldStart = CommissionAppraiseDifficultyPolicy.ShouldStartDifficultyBasedPopup(isRedDifficult);
+                bool isBattleCommissionPopup = CommissionPopupChecks.IsBattleCommissionQuestionPopup(popupText);
+                bool shouldMarkReward = CommissionAppraiseDifficultyPolicy.ShouldMarkRedCommissionCardReward(
+                    isBattleCommissionPopup,
+                    isRedDifficult);
                 Log.Log($"Popup decision r{round}: difficultKeyword={hasDifficultKeyword}, redRatio={redRatio:F3}, text='{popupText}'");
+                if (shouldMarkReward && !rewardMarkerWritten)
+                {
+                    Log.Log($"Commission branch: mark red commission card reward (battleCommission={isBattleCommissionPopup}, redDifficult={isRedDifficult})");
+                    _cardRewardStateStore.MarkRedDifficultCommissionStarted();
+                    rewardMarkerWritten = true;
+                }
+
                 if (shouldStart)
                 {
                     Log.Log("Commission branch: red difficult => click start commission");

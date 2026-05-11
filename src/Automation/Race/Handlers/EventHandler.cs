@@ -435,10 +435,11 @@ public class EventHandler : IRaceHandler
         {
             Log.Log(
                 $"{logTag}: select primary option {primaryOption}/{totalOptions} via hotkey " +
-                $"with mouse fallback pct=({EventOptionGeometry.OptionClickX:F3},{primaryY:F3}) " +
+                $"(mouse only if hotkey send fails) pct=({EventOptionGeometry.OptionClickX:F3},{primaryY:F3}) " +
                 $"px={EventOptionGeometry.FormatPoint(beforeShot, EventOptionGeometry.OptionClickX, primaryY)} shot={beforeShot.Width}x{beforeShot.Height} " +
                 $"(attempt {attempt}/{Math.Max(1, primaryAttempts)}).");
-            if (!await TrySendEventOptionHotkeyAsync(ctx, primaryOption, $"{logTag}: primary option {primaryOption}/{totalOptions}"))
+            bool hotkeySent = await TrySendEventOptionHotkeyAsync(ctx, primaryOption, $"{logTag}: primary option {primaryOption}/{totalOptions}");
+            if (!hotkeySent)
                 await ctx.ClickAtPercent(EventOptionGeometry.OptionClickX, primaryY);
             await ctx.Wait(waitAfterPrimaryMs);
 
@@ -457,6 +458,12 @@ public class EventHandler : IRaceHandler
                 return;
             }
 
+            if (!ShouldContinueMouseFallbackAfterEventHotkey(hotkeySent, changed))
+            {
+                Log.Log($"{logTag}: hotkey was sent and screen still looks similar; skip mouse fallback to avoid double-selecting.");
+                return;
+            }
+
             if (attempt < Math.Max(1, primaryAttempts))
                 Log.Log($"{logTag}: no screen change after primary attempt {attempt}, retry primary option.");
         }
@@ -466,9 +473,10 @@ public class EventHandler : IRaceHandler
             : EventOptionGeometry.CalcOptionClickY(fallbackOption, totalOptions);
         Log.Log(
             $"{logTag}: no screen change after primary attempts, fallback select option {fallbackOption}/{totalOptions} via hotkey " +
-            $"with mouse fallback pct=({EventOptionGeometry.OptionClickX:F3},{fallbackY:F3}) px={EventOptionGeometry.FormatPoint(beforeShot, EventOptionGeometry.OptionClickX, fallbackY)} " +
+            $"(mouse only if hotkey send fails) pct=({EventOptionGeometry.OptionClickX:F3},{fallbackY:F3}) px={EventOptionGeometry.FormatPoint(beforeShot, EventOptionGeometry.OptionClickX, fallbackY)} " +
             $"shot={beforeShot.Width}x{beforeShot.Height}.");
-        if (!await TrySendEventOptionHotkeyAsync(ctx, fallbackOption, $"{logTag}: fallback option {fallbackOption}/{totalOptions}"))
+        bool fallbackHotkeySent = await TrySendEventOptionHotkeyAsync(ctx, fallbackOption, $"{logTag}: fallback option {fallbackOption}/{totalOptions}");
+        if (!fallbackHotkeySent)
             await ctx.ClickAtPercent(EventOptionGeometry.OptionClickX, fallbackY);
         await ctx.Wait(waitAfterFallbackMs);
 
@@ -480,6 +488,12 @@ public class EventHandler : IRaceHandler
         if (changedAfterFallback)
         {
             Log.Log($"{logTag}: screen changed after fallback option, keep result.");
+            return;
+        }
+
+        if (!ShouldContinueMouseFallbackAfterEventHotkey(fallbackHotkeySent, changedAfterFallback))
+        {
+            Log.Log($"{logTag}: fallback hotkey was sent and screen still looks similar; skip mouse fallback to avoid double-selecting.");
             return;
         }
 
@@ -503,9 +517,10 @@ public class EventHandler : IRaceHandler
 
         double primaryY = EventOptionGeometry.ResolveOptionClickY(beforeShot, matchedEvent, optionIndex, totalOptions);
         Log.Log(
-            $"{logTag}: select option {optionIndex}/{totalOptions} via hotkey with mouse fallback pct=({EventOptionGeometry.OptionClickX:F3},{primaryY:F3}) " +
+            $"{logTag}: select option {optionIndex}/{totalOptions} via hotkey (mouse only if hotkey send fails) pct=({EventOptionGeometry.OptionClickX:F3},{primaryY:F3}) " +
             $"px={EventOptionGeometry.FormatPoint(beforeShot, EventOptionGeometry.OptionClickX, primaryY)} shot={beforeShot.Width}x{beforeShot.Height}.");
-        if (!await TrySendEventOptionHotkeyAsync(ctx, optionIndex, $"{logTag}: option {optionIndex}/{totalOptions}"))
+        bool hotkeySent = await TrySendEventOptionHotkeyAsync(ctx, optionIndex, $"{logTag}: option {optionIndex}/{totalOptions}");
+        if (!hotkeySent)
             await ctx.ClickAtPercent(EventOptionGeometry.OptionClickX, primaryY);
         await ctx.Wait(1500);
 
@@ -520,6 +535,12 @@ public class EventHandler : IRaceHandler
         if (changed)
         {
             Log.Log($"{logTag}: screen changed after primary option, keep result.");
+            return;
+        }
+
+        if (!ShouldContinueMouseFallbackAfterEventHotkey(hotkeySent, changed))
+        {
+            Log.Log($"{logTag}: hotkey was sent and screen still looks similar; skip mouse retry sweep to avoid double-selecting.");
             return;
         }
 
@@ -593,6 +614,11 @@ public class EventHandler : IRaceHandler
         };
 
         return optionIndex is >= 1 and <= 4;
+    }
+
+    private static bool ShouldContinueMouseFallbackAfterEventHotkey(bool hotkeySent, bool screenChanged)
+    {
+        return !screenChanged;
     }
 
     /// <summary>

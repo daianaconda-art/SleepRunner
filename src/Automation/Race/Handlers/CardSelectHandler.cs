@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using OpenCvSharp;
+using SleepRunner.Automation.Race.Handlers.Commission;
 using SleepRunner.Automation.Race.Policy;
 using SleepRunner.Recognition;
 using SleepRunner.Utils;
@@ -54,15 +55,29 @@ public class CardSelectHandler : IRaceHandler
     public int Priority => 10;
 
     private readonly Func<Mat, double, double, double, double, string> _readRegion;
+    private readonly CommissionCardRewardStateStore _commissionCardRewardStateStore;
 
     public CardSelectHandler()
-        : this(ReadRegionText)
+        : this(ReadRegionText, new CommissionCardRewardStateStore())
     {
     }
 
     public CardSelectHandler(Func<Mat, double, double, double, double, string> readRegion)
+        : this(readRegion, new CommissionCardRewardStateStore())
+    {
+    }
+
+    internal CardSelectHandler(CommissionCardRewardStateStore commissionCardRewardStateStore)
+        : this(ReadRegionText, commissionCardRewardStateStore)
+    {
+    }
+
+    internal CardSelectHandler(
+        Func<Mat, double, double, double, double, string> readRegion,
+        CommissionCardRewardStateStore commissionCardRewardStateStore)
     {
         _readRegion = readRegion ?? throw new ArgumentNullException(nameof(readRegion));
+        _commissionCardRewardStateStore = commissionCardRewardStateStore ?? throw new ArgumentNullException(nameof(commissionCardRewardStateStore));
     }
 
     public bool CanHandle(FrameContext frame)
@@ -139,6 +154,16 @@ public class CardSelectHandler : IRaceHandler
             {
                 Log.Log($"Card[{i + 1}] marked quantity-capped by OCR, will try it after available cards.");
             }
+        }
+
+        bool hasPendingRedCommissionReward = _commissionCardRewardStateStore.ConsumeRedDifficultCommissionReward();
+        if (ShouldClickUnselectedForRedCommissionFirstReward(texts, hasPendingRedCommissionReward))
+        {
+            var unselected = CardSelectPlanner.GetUnselectedClickPercent();
+            Log.Log($"Red commission first reward + fei profile: no life leech/totem hit, click unselected at ({unselected.X:F3},{unselected.Y:F3})");
+            await ctx.ClickAtPercent(unselected.X, unselected.Y);
+            await ctx.Wait(500);
+            return CardSelectHandleResult.HandledWithoutConfirm;
         }
 
         var (policy, reason) = ResolvePolicy(title, texts);
@@ -282,6 +307,33 @@ public class CardSelectHandler : IRaceHandler
         }
 
         return -1;
+    }
+
+    private bool ShouldClickUnselectedForRedCommissionFirstReward(
+        string[] normalizedTexts,
+        bool hasPendingRedCommissionReward)
+    {
+        if (!hasPendingRedCommissionReward)
+        {
+            return false;
+        }
+
+        if (!string.Equals(RaceProfileManager.CurrentCardsProfile, "fei", StringComparison.OrdinalIgnoreCase))
+        {
+            Log.Log($"Red commission first reward marker ignored for profile='{RaceProfileManager.CurrentCardsProfile}'.");
+            return false;
+        }
+
+        foreach (string text in normalizedTexts)
+        {
+            if (ClassifyCardRank(text) == 0)
+            {
+                Log.Log("Red commission first reward + fei profile: life leech/totem hit, keep normal priority selection.");
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private int ResolveLabelRank(params string[] candidateKeywords)

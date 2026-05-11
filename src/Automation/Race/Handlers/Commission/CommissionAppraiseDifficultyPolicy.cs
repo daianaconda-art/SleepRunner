@@ -11,4 +11,11 @@ internal static class CommissionAppraiseDifficultyPolicy
     {
         return isRedDifficult;
     }
+
+    public static bool ShouldMarkRedCommissionCardReward(
+        bool isBattleCommissionPopup,
+        bool isRedDifficult)
+    {
+        return isBattleCommissionPopup && isRedDifficult;
+    }
 }
