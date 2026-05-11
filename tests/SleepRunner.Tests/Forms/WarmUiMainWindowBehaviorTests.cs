@@ -119,58 +119,95 @@ public class WarmUiMainWindowBehaviorTests
         {
             using var window = (Form)WinFormsTestHost.CreateInternal(
                 "SleepRunner.Forms.RaceMainWindow",
+                new StubRaceController(),
                 new StubRaceController());
 
             var pageNav = WinFormsTestHost.ReadPrivateField<Control>(window, "_pageNav");
             var automationPage = WinFormsTestHost.ReadPrivateField<Control>(window, "_automationPage");
-            var newPage = WinFormsTestHost.ReadPrivateField<Control>(window, "_newPage");
+            var builtInPage = WinFormsTestHost.ReadPrivateField<Control>(window, "_builtInPage");
             var automationButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnAutomationPage");
-            var newButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnNewPage");
+            var builtInButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnBuiltInPage");
             var heroHost = WinFormsTestHost.ReadPrivateField<Control>(window, "_heroHost");
             var sectionTuning = WinFormsTestHost.ReadPrivateField<Control>(window, "_sectionTuning");
 
             Assert.Same(window, pageNav.Parent);
             Assert.Same(window, automationPage.Parent);
-            Assert.Same(window, newPage.Parent);
+            Assert.Same(window, builtInPage.Parent);
             Assert.Same(automationPage, heroHost.Parent);
             Assert.Same(automationPage, sectionTuning.Parent);
             Assert.True(pageNav.Left < automationPage.Left, $"Expected navigation on the left, nav.Left={pageNav.Left}, page.Left={automationPage.Left}.");
             Assert.True(pageNav.Right <= automationPage.Left - 8, $"Expected a gap between navigation and content, nav.Right={pageNav.Right}, page.Left={automationPage.Left}.");
             Assert.True(ReadControlVisibleState(automationPage));
-            Assert.False(ReadControlVisibleState(newPage));
+            Assert.False(ReadControlVisibleState(builtInPage));
             Assert.Contains("自动跑马", automationButton.Text, StringComparison.Ordinal);
-            Assert.Contains("新分页", newButton.Text, StringComparison.Ordinal);
+            Assert.Contains("内置跑马", builtInButton.Text, StringComparison.Ordinal);
         });
     }
 
     [Fact]
-    public void RaceMainWindow_switches_to_empty_second_page_without_starting_or_stopping_runner()
+    public void RaceMainWindow_switches_to_built_in_page_without_starting_or_stopping_runner()
     {
         WinFormsTestHost.Run(() =>
         {
             var controller = new StubRaceController();
+            var builtInController = new StubRaceController();
             using var window = (Form)WinFormsTestHost.CreateInternal(
                 "SleepRunner.Forms.RaceMainWindow",
-                controller);
+                controller,
+                builtInController);
 
             var automationPage = WinFormsTestHost.ReadPrivateField<Control>(window, "_automationPage");
-            var newPage = WinFormsTestHost.ReadPrivateField<Control>(window, "_newPage");
+            var builtInPage = WinFormsTestHost.ReadPrivateField<Control>(window, "_builtInPage");
             var automationButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnAutomationPage");
-            var newButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnNewPage");
+            var builtInButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnBuiltInPage");
 
-            ClickButton((Button)newButton);
+            ClickButton((Button)builtInButton);
 
             Assert.False(ReadControlVisibleState(automationPage));
-            Assert.True(ReadControlVisibleState(newPage));
+            Assert.True(ReadControlVisibleState(builtInPage));
             Assert.Equal(0, controller.StartCallCount);
             Assert.Equal(0, controller.StopCallCount);
+            Assert.Equal(0, builtInController.StartCallCount);
+            Assert.Equal(0, builtInController.StopCallCount);
 
             ClickButton((Button)automationButton);
 
             Assert.True(ReadControlVisibleState(automationPage));
-            Assert.False(ReadControlVisibleState(newPage));
+            Assert.False(ReadControlVisibleState(builtInPage));
             Assert.Equal(0, controller.StartCallCount);
             Assert.Equal(0, controller.StopCallCount);
+            Assert.Equal(0, builtInController.StartCallCount);
+            Assert.Equal(0, builtInController.StopCallCount);
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_built_in_page_start_and_stop_use_built_in_controller_only()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            var automationController = new StubRaceController();
+            var builtInController = new StubRaceController();
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                automationController,
+                builtInController);
+
+            var builtInButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnBuiltInPage");
+            ClickButton((Button)builtInButton);
+
+            var builtInActions = WinFormsTestHost.ReadPrivateField<Control>(window, "_builtInActions");
+            var startButton = WinFormsTestHost.ReadPrivateField<Button>(builtInActions, "_btnStart");
+            var stopButton = WinFormsTestHost.ReadPrivateField<Button>(builtInActions, "_btnStop");
+
+            ClickButton(startButton);
+            builtInController.SetState(RaceState.Running);
+            ClickButton(stopButton);
+
+            Assert.Equal(0, automationController.StartCallCount);
+            Assert.Equal(0, automationController.StopCallCount);
+            Assert.Equal(1, builtInController.StartCallCount);
+            Assert.Equal(1, builtInController.StopCallCount);
         });
     }
 

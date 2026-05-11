@@ -16,7 +16,11 @@ internal sealed class RaceActionButtons : Control
     public event Action? StartClicked;
     public event Action? StopClicked;
 
-    public RaceActionButtons()
+    public RaceActionButtons() : this(null, null)
+    {
+    }
+
+    public RaceActionButtons(string? startText, string? stopText)
     {
         DoubleBuffered = true;
         SetStyle(ControlStyles.UserPaint
@@ -28,7 +32,7 @@ internal sealed class RaceActionButtons : Control
 
         var btnStart = new RoundedButton
         {
-            Text = UiText.Actions.Start,
+            Text = startText ?? UiText.Actions.Start,
             Variant = RoundedButton.ButtonVariant.Primary,
             Icon = RoundedButton.LeadingIcon.Play,
             AccentColor = RaceTheme.Accent,
@@ -40,7 +44,7 @@ internal sealed class RaceActionButtons : Control
 
         var btnStop = new RoundedButton
         {
-            Text = UiText.Actions.Stop,
+            Text = stopText ?? UiText.Actions.Stop,
             Variant = RoundedButton.ButtonVariant.Secondary,
             Icon = RoundedButton.LeadingIcon.Stop,
             AccentColor = RaceTheme.Accent,

@@ -4,6 +4,7 @@ using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using SleepRunner.Automation;
+using SleepRunner.Automation.BuiltInRace;
 using SleepRunner.Automation.Race;
 using SleepRunner.Automation.Race.Policy.Training;
 using SleepRunner.Forms.Controls;
@@ -62,6 +63,7 @@ public sealed class RaceMainWindow : Form
 
     // ---------- 状态 ----------
     private readonly IRaceController _controller;
+    private readonly IRaceController _builtInController;
     private readonly UserSettings _settings;
     private readonly Icon _idleIcon;
     private readonly Icon _runningIcon;
@@ -81,9 +83,13 @@ public sealed class RaceMainWindow : Form
     private SectionHeader _sectionFiles = null!;
     private SidebarPanel _pageNav = null!;
     private Panel _automationPage = null!;
-    private Panel _newPage = null!;
+    private Panel _builtInPage = null!;
     private SidebarTabButton _btnAutomationPage = null!;
-    private SidebarTabButton _btnNewPage = null!;
+    private SidebarTabButton _btnBuiltInPage = null!;
+    private HeroHostPanel _builtInHeroHost = null!;
+    private RaceStatusIndicator _builtInStatus = null!;
+    private RaceActionButtons _builtInActions = null!;
+    private SectionHeader _sectionBuiltIn = null!;
     private MainPage _activePage = MainPage.Automation;
 
     // 自绘标题栏控件
@@ -107,10 +113,10 @@ public sealed class RaceMainWindow : Form
     private enum MainPage
     {
         Automation,
-        NewPage,
+        BuiltIn,
     }
 
-    public RaceMainWindow() : this(new RaceAutomationController()) { }
+    public RaceMainWindow() : this(new RaceAutomationController(), new BuiltInRaceController()) { }
 
     private static Icon LoadAppIcon(string resourceName)
     {
@@ -122,8 +128,14 @@ public sealed class RaceMainWindow : Form
 
     /// <summary>测试 / 替身用：注入自定义 IRaceController 实现</summary>
     internal RaceMainWindow(IRaceController controller)
+        : this(controller, new BuiltInRaceController())
+    {
+    }
+
+    internal RaceMainWindow(IRaceController controller, IRaceController builtInController)
     {
         _controller = controller;
+        _builtInController = builtInController;
         _settings = UserSettings.Load();
         _settings.ApplyToRaceConfig();
         _idleIcon = LoadAppIcon(IdleAppIconResourceName);
@@ -149,6 +161,8 @@ public sealed class RaceMainWindow : Form
 
         _controller.StateChanged += OnControllerStateChanged;
         _controller.ActivityChanged += OnActivityChanged;
+        _builtInController.StateChanged += OnBuiltInControllerStateChanged;
+        _builtInController.ActivityChanged += OnBuiltInActivityChanged;
         Logger.OnLog += OnLoggerLog;
         _loggerSubscribed = true;
         RaceConfig.Changed += ScheduleSave;
@@ -156,6 +170,7 @@ public sealed class RaceMainWindow : Form
         FormClosing += OnFormClosing;
 
         ApplyState(RaceState.Idle);
+        ApplyBuiltInState(RaceState.Idle);
     }
 
     // ---------- 启用窗体阴影 ----------
@@ -406,6 +421,7 @@ public sealed class RaceMainWindow : Form
 
         // Footer：左侧版本，右侧拖拽提示
         BuildFooter();
+        BuildBuiltInPage();
         SelectPage(MainPage.Automation);
 
         // 排布并按内容定下尺寸约束
@@ -429,9 +445,9 @@ public sealed class RaceMainWindow : Form
         _btnAutomationPage.Click += (_, _) => SelectPage(MainPage.Automation);
         _pageNav.Controls.Add(_btnAutomationPage);
 
-        _btnNewPage = CreatePageButton("新分页");
-        _btnNewPage.Click += (_, _) => SelectPage(MainPage.NewPage);
-        _pageNav.Controls.Add(_btnNewPage);
+        _btnBuiltInPage = CreatePageButton("内置跑马");
+        _btnBuiltInPage.Click += (_, _) => SelectPage(MainPage.BuiltIn);
+        _pageNav.Controls.Add(_btnBuiltInPage);
 
         _automationPage = new Panel
         {
@@ -439,12 +455,12 @@ public sealed class RaceMainWindow : Form
         };
         Controls.Add(_automationPage);
 
-        _newPage = new Panel
+        _builtInPage = new Panel
         {
             BackColor = Color.Transparent,
             Visible = false,
         };
-        Controls.Add(_newPage);
+        Controls.Add(_builtInPage);
     }
 
     private static SidebarTabButton CreatePageButton(string text) =>
@@ -465,6 +481,27 @@ public sealed class RaceMainWindow : Form
         _automationPage.Controls.Add(_heroHost);
     }
 
+    private void BuildBuiltInPage()
+    {
+        _sectionBuiltIn = new SectionHeader("内置跑马");
+        _builtInPage.Controls.Add(_sectionBuiltIn);
+
+        _builtInHeroHost = new HeroHostPanel
+        {
+            BackColor = RaceTheme.Panel,
+        };
+        _builtInHeroHost.Paint += HeroHost_Paint;
+        _builtInPage.Controls.Add(_builtInHeroHost);
+
+        _builtInStatus = new RaceStatusIndicator();
+        _builtInHeroHost.Controls.Add(_builtInStatus);
+
+        _builtInActions = new RaceActionButtons("启动", UiText.Actions.Stop);
+        _builtInActions.StartClicked += OnBuiltInStartClicked;
+        _builtInActions.StopClicked += OnBuiltInStopClicked;
+        _builtInHeroHost.Controls.Add(_builtInActions);
+    }
+
     private void LayoutHeroChildren()
     {
         int heroClientW = _heroHost.ClientSize.Width;
@@ -474,6 +511,17 @@ public sealed class RaceMainWindow : Form
         int statusWidth = Math.Max(HeroStatusMinWidth, actionsLeft - HeroCardSidePad - HeroStatusToActionsGap);
         _status.SetBounds(HeroCardSidePad, heroTop, statusWidth, RaceStatusIndicator.CardHeight);
         _actions.SetBounds(actionsLeft, heroTop + HeroActionsTopOffset, actionsWidth, RaceActionButtons.RowHeight);
+    }
+
+    private void LayoutBuiltInHeroChildren()
+    {
+        int heroClientW = _builtInHeroHost.ClientSize.Width;
+        int actionsWidth = Math.Clamp((int)Math.Round(heroClientW * HeroActionsWidthRatio), HeroActionsMinWidth, HeroActionsMaxWidth);
+        int heroTop = HeroCardTopPad;
+        int actionsLeft = heroClientW - HeroCardSidePad - actionsWidth;
+        int statusWidth = Math.Max(HeroStatusMinWidth, actionsLeft - HeroCardSidePad - HeroStatusToActionsGap);
+        _builtInStatus.SetBounds(HeroCardSidePad, heroTop, statusWidth, RaceStatusIndicator.CardHeight);
+        _builtInActions.SetBounds(actionsLeft, heroTop + HeroActionsTopOffset, actionsWidth, RaceActionButtons.RowHeight);
     }
 
     /// <summary>
@@ -508,9 +556,9 @@ public sealed class RaceMainWindow : Form
             _automationPage.SetBounds(pageLeft, pageTop, innerWidth, pageHeight);
         }
 
-        if (_newPage is not null)
+        if (_builtInPage is not null)
         {
-            _newPage.SetBounds(pageLeft, pageTop, innerWidth, pageHeight);
+            _builtInPage.SetBounds(pageLeft, pageTop, innerWidth, pageHeight);
         }
 
         int y = 0;
@@ -563,12 +611,21 @@ public sealed class RaceMainWindow : Form
             _footer.SetBounds(0, footerY, innerWidth, FooterHeight);
             LayoutFooterChildren(innerWidth);
         }
+
+        if (_sectionBuiltIn is not null)
+        {
+            int builtInY = 0;
+            _sectionBuiltIn.SetBounds(2, builtInY, innerWidth - 4, SectionHeader.RowHeight);
+            builtInY += SectionHeader.RowHeight + GapAfterSection;
+            _builtInHeroHost.SetBounds(0, builtInY, innerWidth, HeroCardHeight);
+            LayoutBuiltInHeroChildren();
+        }
     }
 
     private void LayoutPageNavChildren()
     {
         _btnAutomationPage.SetBounds(0, 0, PageNavWidth, PageNavButtonHeight);
-        _btnNewPage.SetBounds(0, PageNavButtonHeight + PageNavButtonGap, PageNavWidth, PageNavButtonHeight);
+        _btnBuiltInPage.SetBounds(0, PageNavButtonHeight + PageNavButtonGap, PageNavWidth, PageNavButtonHeight);
     }
 
     private void BuildTitleBar()
@@ -681,12 +738,12 @@ public sealed class RaceMainWindow : Form
             }
         }
 
-        if (_newPage is not null)
+        if (_builtInPage is not null)
         {
-            _newPage.Visible = !showAutomation;
+            _builtInPage.Visible = !showAutomation;
             if (!showAutomation)
             {
-                _newPage.BringToFront();
+                _builtInPage.BringToFront();
             }
         }
 
@@ -695,9 +752,9 @@ public sealed class RaceMainWindow : Form
             _btnAutomationPage.Active = showAutomation;
         }
 
-        if (_btnNewPage is not null)
+        if (_btnBuiltInPage is not null)
         {
-            _btnNewPage.Active = !showAutomation;
+            _btnBuiltInPage.Active = !showAutomation;
         }
 
         _pageNav?.BringToFront();
@@ -731,13 +788,15 @@ public sealed class RaceMainWindow : Form
 
     private void HeroHost_Paint(object? sender, PaintEventArgs e)
     {
-        if (_heroHost.ClientSize.Width <= 0 || _heroHost.ClientSize.Height <= 0)
+        if (sender is not Control host ||
+            host.ClientSize.Width <= 0 ||
+            host.ClientSize.Height <= 0)
         {
             return;
         }
 
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        RaceTheme.DrawRoundedPanel(e.Graphics, _heroHost.ClientRectangle, RaceTheme.Panel, RaceTheme.Border, 18);
+        RaceTheme.DrawRoundedPanel(e.Graphics, host.ClientRectangle, RaceTheme.Panel, RaceTheme.Border, 18);
     }
 
     private sealed class SidebarPanel : Panel
@@ -1078,6 +1137,18 @@ public sealed class RaceMainWindow : Form
         catch { /* 错误日志已在 controller 内打 */ }
     }
 
+    private void OnBuiltInStartClicked()
+    {
+        _builtInController.Start();
+    }
+
+    private async void OnBuiltInStopClicked()
+    {
+        _builtInActions.DisableStop();
+        try { await _builtInController.StopAsync(); }
+        catch { }
+    }
+
     private void OnConfigChanged()
     {
         ScheduleSave();
@@ -1161,6 +1232,24 @@ public sealed class RaceMainWindow : Form
             _status.SetActivity(text);
     }
 
+    private void OnBuiltInControllerStateChanged(RaceState newState)
+    {
+        if (IsDisposed) return;
+        if (InvokeRequired)
+            BeginInvoke(new Action(() => ApplyBuiltInState(newState)));
+        else
+            ApplyBuiltInState(newState);
+    }
+
+    private void OnBuiltInActivityChanged(string text)
+    {
+        if (IsDisposed) return;
+        if (InvokeRequired)
+            BeginInvoke(new Action(() => _builtInStatus.SetActivity(text)));
+        else
+            _builtInStatus.SetActivity(text);
+    }
+
     private void OnLoggerLog(string line)
     {
         if (IsDisposed || _keyLog is null)
@@ -1196,10 +1285,25 @@ public sealed class RaceMainWindow : Form
     {
         _status.ApplyState(state);
         _actions.ApplyState(state);
-        Icon = UsesRunningIcon(state) ? _runningIcon : _idleIcon;
+        UpdateWindowIcon(state, _builtInController.State);
         // Idle / Stopped 时清掉活动描述，让默认副标题（"Ready to start" 等）回归
         if (state == RaceState.Idle || state == RaceState.Stopped)
             _status.SetActivity(null);
+    }
+
+    private void ApplyBuiltInState(RaceState state)
+    {
+        _builtInStatus.ApplyState(state);
+        _builtInActions.ApplyState(state);
+        UpdateWindowIcon(_controller.State, state);
+        if (state == RaceState.Idle || state == RaceState.Stopped)
+            _builtInStatus.SetActivity("驱动游戏内置自动旅程");
+    }
+
+    private void UpdateWindowIcon(RaceState automationState, RaceState builtInState)
+    {
+        bool anyRunning = UsesRunningIcon(automationState) || UsesRunningIcon(builtInState);
+        Icon = anyRunning ? _runningIcon : _idleIcon;
     }
 
     private static bool UsesRunningIcon(RaceState state) =>
@@ -1261,24 +1365,33 @@ public sealed class RaceMainWindow : Form
     {
         _controller.StateChanged -= OnControllerStateChanged;
         _controller.ActivityChanged -= OnActivityChanged;
+        _builtInController.StateChanged -= OnBuiltInControllerStateChanged;
+        _builtInController.ActivityChanged -= OnBuiltInActivityChanged;
         UnsubscribeLogger();
         RaceConfig.Changed -= ScheduleSave;
         _saveDebounce?.Stop();
         SaveSettingsFromUi();
 
         var state = _controller.State;
-        if (state == RaceState.Running || state == RaceState.Paused || state == RaceState.Stopping)
+        var builtInState = _builtInController.State;
+        if (IsActiveState(state) || IsActiveState(builtInState))
         {
             e.Cancel = true;
             try { await _controller.StopAsync(); } catch { }
+            try { await _builtInController.StopAsync(); } catch { }
             _controller.Dispose();
+            _builtInController.Dispose();
             BeginInvoke(new Action(Close));
         }
         else
         {
             _controller.Dispose();
+            _builtInController.Dispose();
         }
     }
+
+    private static bool IsActiveState(RaceState state) =>
+        state is RaceState.Running or RaceState.Paused or RaceState.Stopping;
 
     protected override void Dispose(bool disposing)
     {
