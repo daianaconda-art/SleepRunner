@@ -27,12 +27,16 @@ public sealed class RaceMainWindow : Form
     // ---------- 常量 ----------
     private const string IdleAppIconResourceName = "SleepRunner.AppIcon.ico";
     private const string RunningAppIconResourceName = "SleepRunner.RunningAppIcon.ico";
-    private const int DefaultPanelWidth = 408;
-    private const int MinPanelWidth = 392;
-    private const int MaxPanelWidth = 760;
+    private const int DefaultPanelWidth = 506;
+    private const int MinPanelWidth = 500;
+    private const int MaxPanelWidth = 860;
     private const int PadX = 14;
     private const int TitleBarHeight = 46;
     private const int GapAfterTitle = 14;
+    private const int PageNavWidth = 86;
+    private const int PageNavGap = 12;
+    private const int PageNavButtonHeight = 42;
+    private const int PageNavButtonGap = 8;
     private const int GapAfterHero = 18;
     private const int GapAfterSection = 8;
     private const int GapAfterConfig = 14;
@@ -75,6 +79,12 @@ public sealed class RaceMainWindow : Form
     private SectionHeader _sectionProfiles = null!;
     private SectionHeader _sectionTrainingRules = null!;
     private SectionHeader _sectionFiles = null!;
+    private SidebarPanel _pageNav = null!;
+    private Panel _automationPage = null!;
+    private Panel _newPage = null!;
+    private SidebarTabButton _btnAutomationPage = null!;
+    private SidebarTabButton _btnNewPage = null!;
+    private MainPage _activePage = MainPage.Automation;
 
     // 自绘标题栏控件
     private Panel _titleBar = null!;
@@ -93,6 +103,12 @@ public sealed class RaceMainWindow : Form
     // 那一刻这个 timer 还未创建；用 null 表达"尚未就绪"
     private System.Windows.Forms.Timer? _saveDebounce;
     private const int SaveDebounceMs = 600;
+
+    private enum MainPage
+    {
+        Automation,
+        NewPage,
+    }
 
     public RaceMainWindow() : this(new RaceAutomationController()) { }
 
@@ -337,6 +353,7 @@ public sealed class RaceMainWindow : Form
     private void BuildLayout()
     {
         BuildTitleBar();
+        BuildPageShell();
         BuildHeroHost();
 
         // 状态卡片
@@ -350,45 +367,46 @@ public sealed class RaceMainWindow : Form
         _heroHost.Controls.Add(_actions);
 
         _sectionKeyLog = new SectionHeader("关键日志");
-        Controls.Add(_sectionKeyLog);
+        _automationPage.Controls.Add(_sectionKeyLog);
 
         _keyLog = new KeyLogStrip();
-        Controls.Add(_keyLog);
+        _automationPage.Controls.Add(_keyLog);
 
         // 分组标题 + 配置卡片
         _sectionTuning = new SectionHeader(UiText.Sections.Tuning);
-        Controls.Add(_sectionTuning);
+        _automationPage.Controls.Add(_sectionTuning);
 
         _config = new RaceConfigStrip(_settings);
         _config.Changed += OnConfigChanged;
-        Controls.Add(_config);
+        _automationPage.Controls.Add(_config);
 
         // Profiles 分组：让用户挑选当前生效的 events/cards/trade JSON
         _sectionProfiles = new SectionHeader(UiText.Sections.Profiles);
-        Controls.Add(_sectionProfiles);
+        _automationPage.Controls.Add(_sectionProfiles);
 
         _profiles = new ProfilesStrip(_settings);
         _profiles.ProfilesChanged += OnProfilesChanged;
-        Controls.Add(_profiles);
+        _automationPage.Controls.Add(_profiles);
 
         // Training rules / config dirs 分组：先放训练规则，再放目录入口
         _sectionTrainingRules = new SectionHeader(UiText.Sections.TrainingRules);
-        Controls.Add(_sectionTrainingRules);
+        _automationPage.Controls.Add(_sectionTrainingRules);
 
         _trainingRules = new TrainingRulesStrip(_settings.TrainingProfile);
         _trainingRules.ProfileChanged += OnTrainingProfileChanged;
         _trainingRules.EditRequested += OnTrainingRuleEditRequested;
         _trainingRules.DuplicateRequested += OnTrainingRuleDuplicateRequested;
-        Controls.Add(_trainingRules);
+        _automationPage.Controls.Add(_trainingRules);
 
         _sectionFiles = new SectionHeader(UiText.Sections.ConfigDirs);
-        Controls.Add(_sectionFiles);
+        _automationPage.Controls.Add(_sectionFiles);
 
         _files = new FilesStrip();
-        Controls.Add(_files);
+        _automationPage.Controls.Add(_files);
 
         // Footer：左侧版本，右侧拖拽提示
         BuildFooter();
+        SelectPage(MainPage.Automation);
 
         // 排布并按内容定下尺寸约束
         LayoutControls();
@@ -402,6 +420,41 @@ public sealed class RaceMainWindow : Form
             ClientSize = new Size(ClientSize.Width, _contentHeight);
     }
 
+    private void BuildPageShell()
+    {
+        _pageNav = new SidebarPanel();
+        Controls.Add(_pageNav);
+
+        _btnAutomationPage = CreatePageButton("自动跑马");
+        _btnAutomationPage.Click += (_, _) => SelectPage(MainPage.Automation);
+        _pageNav.Controls.Add(_btnAutomationPage);
+
+        _btnNewPage = CreatePageButton("新分页");
+        _btnNewPage.Click += (_, _) => SelectPage(MainPage.NewPage);
+        _pageNav.Controls.Add(_btnNewPage);
+
+        _automationPage = new Panel
+        {
+            BackColor = Color.Transparent,
+        };
+        Controls.Add(_automationPage);
+
+        _newPage = new Panel
+        {
+            BackColor = Color.Transparent,
+            Visible = false,
+        };
+        Controls.Add(_newPage);
+    }
+
+    private static SidebarTabButton CreatePageButton(string text) =>
+        new()
+        {
+            Text = text,
+            Font = RaceTheme.BoldFont(9.75F),
+            ForeColor = RaceTheme.TextSecondary,
+        };
+
     private void BuildHeroHost()
     {
         _heroHost = new HeroHostPanel
@@ -409,7 +462,7 @@ public sealed class RaceMainWindow : Form
             BackColor = RaceTheme.Panel,
         };
         _heroHost.Paint += HeroHost_Paint;
-        Controls.Add(_heroHost);
+        _automationPage.Controls.Add(_heroHost);
     }
 
     private void LayoutHeroChildren()
@@ -432,7 +485,6 @@ public sealed class RaceMainWindow : Form
     {
         int clientW = Math.Max(MinPanelWidth, ClientSize.Width);
         int clientH = ClientSize.Height;
-        int innerWidth = clientW - PadX * 2;
 
         // 标题栏
         if (_titleBar is not null)
@@ -441,9 +493,29 @@ public sealed class RaceMainWindow : Form
             LayoutTitleBarChildren(clientW);
         }
 
-        int y = TitleBarHeight + GapAfterTitle;
+        int pageTop = TitleBarHeight + GapAfterTitle;
+        int pageHeight = Math.Max(0, clientH - pageTop);
+        if (_pageNav is not null)
+        {
+            _pageNav.SetBounds(PadX, pageTop, PageNavWidth, Math.Max(PageNavButtonHeight * 2 + PageNavButtonGap, pageHeight - BottomPad));
+            LayoutPageNavChildren();
+        }
 
-        _heroCardBounds = new Rectangle(PadX, y, innerWidth, HeroCardHeight);
+        int pageLeft = PadX + PageNavWidth + PageNavGap;
+        int innerWidth = Math.Max(0, clientW - pageLeft - PadX);
+        if (_automationPage is not null)
+        {
+            _automationPage.SetBounds(pageLeft, pageTop, innerWidth, pageHeight);
+        }
+
+        if (_newPage is not null)
+        {
+            _newPage.SetBounds(pageLeft, pageTop, innerWidth, pageHeight);
+        }
+
+        int y = 0;
+
+        _heroCardBounds = new Rectangle(0, y, innerWidth, HeroCardHeight);
         if (_heroHost is not null)
         {
             _heroHost.SetBounds(_heroCardBounds.X, _heroCardBounds.Y, _heroCardBounds.Width, _heroCardBounds.Height);
@@ -451,46 +523,52 @@ public sealed class RaceMainWindow : Form
         }
         y = _heroCardBounds.Bottom + GapAfterHero;
 
-        _sectionKeyLog.SetBounds(PadX + 2, y, innerWidth - 4, SectionHeader.RowHeight);
+        _sectionKeyLog.SetBounds(2, y, innerWidth - 4, SectionHeader.RowHeight);
         y += SectionHeader.RowHeight + GapAfterSection;
 
-        _keyLog.SetBounds(PadX, y, innerWidth, KeyLogStrip.CardHeight);
+        _keyLog.SetBounds(0, y, innerWidth, KeyLogStrip.CardHeight);
         y += _keyLog.Height + GapAfterConfig;
 
-        _sectionTuning.SetBounds(PadX + 2, y, innerWidth - 4, SectionHeader.RowHeight);
+        _sectionTuning.SetBounds(2, y, innerWidth - 4, SectionHeader.RowHeight);
         y += SectionHeader.RowHeight + GapAfterSection;
 
-        _config.SetBounds(PadX, y, innerWidth, RaceConfigStrip.CardHeight);
+        _config.SetBounds(0, y, innerWidth, RaceConfigStrip.CardHeight);
         y += _config.Height + GapAfterConfig;
 
-        _sectionProfiles.SetBounds(PadX + 2, y, innerWidth - 4, SectionHeader.RowHeight);
+        _sectionProfiles.SetBounds(2, y, innerWidth - 4, SectionHeader.RowHeight);
         y += SectionHeader.RowHeight + GapAfterSection;
 
-        _profiles.SetBounds(PadX, y, innerWidth, ProfilesStrip.CardHeight);
+        _profiles.SetBounds(0, y, innerWidth, ProfilesStrip.CardHeight);
         y += _profiles.Height + GapAfterConfig;
 
-        _sectionTrainingRules.SetBounds(PadX + 2, y, innerWidth - 4, SectionHeader.RowHeight);
+        _sectionTrainingRules.SetBounds(2, y, innerWidth - 4, SectionHeader.RowHeight);
         y += SectionHeader.RowHeight + GapAfterSection;
 
-        _trainingRules.SetBounds(PadX, y, innerWidth, TrainingRulesStrip.CardHeight);
+        _trainingRules.SetBounds(0, y, innerWidth, TrainingRulesStrip.CardHeight);
         y += _trainingRules.Height + GapAfterConfig;
 
-        _sectionFiles.SetBounds(PadX + 2, y, innerWidth - 4, SectionHeader.RowHeight);
+        _sectionFiles.SetBounds(2, y, innerWidth - 4, SectionHeader.RowHeight);
         y += SectionHeader.RowHeight + GapAfterSection;
 
-        _files.SetBounds(PadX, y, innerWidth, FilesStrip.CardHeight);
+        _files.SetBounds(0, y, innerWidth, FilesStrip.CardHeight);
         y += _files.Height + GapAfterConfig;
 
         // 内容总高度（footer 加上 bottom padding 之前）
-        _contentHeight = y + FooterHeight + BottomPad;
+        _contentHeight = pageTop + y + FooterHeight + BottomPad;
 
         // Footer 始终钉在底部，留出 BottomPad
         if (_footer is not null)
         {
-            int footerY = Math.Max(y, clientH - FooterHeight - BottomPad);
-            _footer.SetBounds(PadX, footerY, innerWidth, FooterHeight);
+            int footerY = Math.Max(y, pageHeight - FooterHeight - BottomPad);
+            _footer.SetBounds(0, footerY, innerWidth, FooterHeight);
             LayoutFooterChildren(innerWidth);
         }
+    }
+
+    private void LayoutPageNavChildren()
+    {
+        _btnAutomationPage.SetBounds(0, 0, PageNavWidth, PageNavButtonHeight);
+        _btnNewPage.SetBounds(0, PageNavButtonHeight + PageNavButtonGap, PageNavWidth, PageNavButtonHeight);
     }
 
     private void BuildTitleBar()
@@ -556,7 +634,7 @@ public sealed class RaceMainWindow : Form
         {
             BackColor = Color.Transparent,
         };
-        Controls.Add(_footer);
+        _automationPage.Controls.Add(_footer);
 
         _lblFooterVersion = new Label
         {
@@ -587,6 +665,43 @@ public sealed class RaceMainWindow : Form
         const int rightW = 80;
         _lblFooterVersion.SetBounds(2, 0, Math.Max(0, innerWidth - rightW - 4), FooterHeight);
         _lblFooterRight.SetBounds(innerWidth - rightW, 0, rightW - 2, FooterHeight);
+    }
+
+    private void SelectPage(MainPage page)
+    {
+        _activePage = page;
+
+        bool showAutomation = page == MainPage.Automation;
+        if (_automationPage is not null)
+        {
+            _automationPage.Visible = showAutomation;
+            if (showAutomation)
+            {
+                _automationPage.BringToFront();
+            }
+        }
+
+        if (_newPage is not null)
+        {
+            _newPage.Visible = !showAutomation;
+            if (!showAutomation)
+            {
+                _newPage.BringToFront();
+            }
+        }
+
+        if (_btnAutomationPage is not null)
+        {
+            _btnAutomationPage.Active = showAutomation;
+        }
+
+        if (_btnNewPage is not null)
+        {
+            _btnNewPage.Active = !showAutomation;
+        }
+
+        _pageNav?.BringToFront();
+        _titleBar?.BringToFront();
     }
 
     // ---------- 标题栏绘制 ----------
@@ -623,6 +738,133 @@ public sealed class RaceMainWindow : Form
 
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         RaceTheme.DrawRoundedPanel(e.Graphics, _heroHost.ClientRectangle, RaceTheme.Panel, RaceTheme.Border, 18);
+    }
+
+    private sealed class SidebarPanel : Panel
+    {
+        public SidebarPanel()
+        {
+            DoubleBuffered = true;
+            BackColor = Color.Transparent;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer
+                     | ControlStyles.AllPaintingInWmPaint
+                     | ControlStyles.ResizeRedraw
+                     | ControlStyles.SupportsTransparentBackColor, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            using var pen = new Pen(RaceTheme.Divider, 1);
+            e.Graphics.DrawLine(pen, Width - 1, 0, Width - 1, Height);
+        }
+    }
+
+    private sealed class SidebarTabButton : Button
+    {
+        private bool _hover;
+        private bool _pressed;
+        private bool _active;
+
+        public bool Active
+        {
+            get => _active;
+            set
+            {
+                if (_active == value)
+                {
+                    return;
+                }
+
+                _active = value;
+                Invalidate();
+            }
+        }
+
+        public SidebarTabButton()
+        {
+            FlatStyle = FlatStyle.Flat;
+            FlatAppearance.BorderSize = 0;
+            FlatAppearance.MouseDownBackColor = Color.Transparent;
+            FlatAppearance.MouseOverBackColor = Color.Transparent;
+            BackColor = Color.Transparent;
+            TextAlign = ContentAlignment.MiddleLeft;
+            Cursor = Cursors.Hand;
+            DoubleBuffered = true;
+            SetStyle(ControlStyles.UserPaint
+                     | ControlStyles.AllPaintingInWmPaint
+                     | ControlStyles.OptimizedDoubleBuffer
+                     | ControlStyles.SupportsTransparentBackColor
+                     | ControlStyles.ResizeRedraw, true);
+        }
+
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            _hover = true;
+            Invalidate();
+            base.OnMouseEnter(e);
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            _hover = false;
+            _pressed = false;
+            Invalidate();
+            base.OnMouseLeave(e);
+        }
+
+        protected override void OnMouseDown(MouseEventArgs mevent)
+        {
+            _pressed = true;
+            Invalidate();
+            base.OnMouseDown(mevent);
+        }
+
+        protected override void OnMouseUp(MouseEventArgs mevent)
+        {
+            _pressed = false;
+            Invalidate();
+            base.OnMouseUp(mevent);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+            var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+            Color fill = Active
+                ? Color.FromArgb(251, 241, 233)
+                : _pressed
+                    ? Color.FromArgb(244, 238, 230)
+                    : _hover
+                        ? Color.FromArgb(249, 246, 241)
+                        : Color.Transparent;
+
+            if (fill.A > 0)
+            {
+                RaceTheme.FillRoundedRect(g, rect, fill, 8);
+            }
+
+            if (Active)
+            {
+                using var accent = new SolidBrush(RaceTheme.Accent);
+                g.FillRectangle(accent, 0, 8, 3, Height - 16);
+            }
+
+            Color fg = Active ? RaceTheme.TextPrimary : RaceTheme.TextSecondary;
+            var textRect = new Rectangle(12, 0, Math.Max(0, Width - 18), Height);
+            TextRenderer.DrawText(
+                g,
+                Text,
+                Font,
+                textRect,
+                fg,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+        }
     }
 
     private sealed class HeroHostPanel : Panel

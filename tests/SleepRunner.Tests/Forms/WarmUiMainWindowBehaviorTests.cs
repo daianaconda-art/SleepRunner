@@ -100,14 +100,77 @@ public class WarmUiMainWindowBehaviorTests
             var keyLog = WinFormsTestHost.ReadPrivateField<Control>(window, "_keyLog");
             var sectionKeyLog = WinFormsTestHost.ReadPrivateField<Control>(window, "_sectionKeyLog");
             var sectionTuning = WinFormsTestHost.ReadPrivateField<Control>(window, "_sectionTuning");
+            var automationPage = WinFormsTestHost.ReadPrivateField<Control>(window, "_automationPage");
             Rectangle heroCardBounds = WinFormsTestHost.ReadPrivateField<Rectangle>(window, "_heroCardBounds");
 
-            Assert.Same(window, keyLog.Parent);
-            Assert.Same(window, sectionKeyLog.Parent);
+            Assert.Same(automationPage, keyLog.Parent);
+            Assert.Same(automationPage, sectionKeyLog.Parent);
             Assert.True(sectionKeyLog.Top > heroCardBounds.Bottom, $"Expected key log header below hero card, got header={sectionKeyLog.Top}, hero={heroCardBounds.Bottom}.");
             Assert.True(keyLog.Top > sectionKeyLog.Top, $"Expected key log card below its header, got card={keyLog.Top}, header={sectionKeyLog.Top}.");
             Assert.True(sectionTuning.Top > keyLog.Bottom, $"Expected tuning section below key log, got tuning={sectionTuning.Top}, keyLog.Bottom={keyLog.Bottom}.");
             Assert.InRange(keyLog.Height, 88, 132);
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_uses_left_tab_navigation_with_automation_page_selected()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                new StubRaceController());
+
+            var pageNav = WinFormsTestHost.ReadPrivateField<Control>(window, "_pageNav");
+            var automationPage = WinFormsTestHost.ReadPrivateField<Control>(window, "_automationPage");
+            var newPage = WinFormsTestHost.ReadPrivateField<Control>(window, "_newPage");
+            var automationButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnAutomationPage");
+            var newButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnNewPage");
+            var heroHost = WinFormsTestHost.ReadPrivateField<Control>(window, "_heroHost");
+            var sectionTuning = WinFormsTestHost.ReadPrivateField<Control>(window, "_sectionTuning");
+
+            Assert.Same(window, pageNav.Parent);
+            Assert.Same(window, automationPage.Parent);
+            Assert.Same(window, newPage.Parent);
+            Assert.Same(automationPage, heroHost.Parent);
+            Assert.Same(automationPage, sectionTuning.Parent);
+            Assert.True(pageNav.Left < automationPage.Left, $"Expected navigation on the left, nav.Left={pageNav.Left}, page.Left={automationPage.Left}.");
+            Assert.True(pageNav.Right <= automationPage.Left - 8, $"Expected a gap between navigation and content, nav.Right={pageNav.Right}, page.Left={automationPage.Left}.");
+            Assert.True(ReadControlVisibleState(automationPage));
+            Assert.False(ReadControlVisibleState(newPage));
+            Assert.Contains("自动跑马", automationButton.Text, StringComparison.Ordinal);
+            Assert.Contains("新分页", newButton.Text, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_switches_to_empty_second_page_without_starting_or_stopping_runner()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            var controller = new StubRaceController();
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                controller);
+
+            var automationPage = WinFormsTestHost.ReadPrivateField<Control>(window, "_automationPage");
+            var newPage = WinFormsTestHost.ReadPrivateField<Control>(window, "_newPage");
+            var automationButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnAutomationPage");
+            var newButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnNewPage");
+
+            ClickButton((Button)newButton);
+
+            Assert.False(ReadControlVisibleState(automationPage));
+            Assert.True(ReadControlVisibleState(newPage));
+            Assert.Equal(0, controller.StartCallCount);
+            Assert.Equal(0, controller.StopCallCount);
+
+            ClickButton((Button)automationButton);
+
+            Assert.True(ReadControlVisibleState(automationPage));
+            Assert.False(ReadControlVisibleState(newPage));
+            Assert.Equal(0, controller.StartCallCount);
+            Assert.Equal(0, controller.StopCallCount);
         });
     }
 
@@ -350,6 +413,17 @@ public class WarmUiMainWindowBehaviorTests
             ?? throw new InvalidOperationException("HandleAutomationKeyboardHook method not found.");
 
         return (bool)method.Invoke(window, new object[] { message, vkCode, flags })!;
+    }
+
+    private static bool ReadControlVisibleState(Control control)
+    {
+        MethodInfo method = typeof(Control).GetMethod(
+                                "GetState",
+                                BindingFlags.Instance | BindingFlags.NonPublic)
+                            ?? throw new InvalidOperationException("Control.GetState method not found.");
+
+        const int stateVisible = 0x00000002;
+        return (bool)method.Invoke(control, [stateVisible])!;
     }
 
     private static IReadOnlyList<string> ReadKeyLogEntries(Control keyLog)

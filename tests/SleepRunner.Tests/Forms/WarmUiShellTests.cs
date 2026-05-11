@@ -18,10 +18,10 @@ public class WarmUiShellTests
                 "SleepRunner.Forms.RaceMainWindow",
                 new StubRaceController());
 
-            Assert.InRange(window.ClientSize.Width, 404, 420);
+            Assert.InRange(window.ClientSize.Width, 502, 520);
             Assert.True(window.ClientSize.Height >= 700, $"Expected height >= 700, got {window.ClientSize.Height}.");
             Assert.Equal(Color.FromArgb(247, 244, 239), window.BackColor);
-            Assert.True(window.MinimumSize.Width >= 392, $"Expected minimum width >= 392, got {window.MinimumSize.Width}.");
+            Assert.True(window.MinimumSize.Width >= 500, $"Expected minimum width >= 500, got {window.MinimumSize.Width}.");
         });
     }
 
@@ -85,6 +85,7 @@ public class WarmUiShellTests
 
             Rectangle heroCardBounds = WinFormsTestHost.ReadPrivateField<Rectangle>(window, "_heroCardBounds");
             Control titleBar = WinFormsTestHost.ReadPrivateField<Control>(window, "_titleBar");
+            Control automationPage = WinFormsTestHost.ReadPrivateField<Control>(window, "_automationPage");
             Control heroHost = WinFormsTestHost.ReadPrivateField<Control>(window, "_heroHost");
             Control status = WinFormsTestHost.ReadPrivateField<Control>(window, "_status");
             Control actions = WinFormsTestHost.ReadPrivateField<Control>(window, "_actions");
@@ -93,11 +94,12 @@ public class WarmUiShellTests
             Control sectionTuning = WinFormsTestHost.ReadPrivateField<Control>(window, "_sectionTuning");
 
             Assert.False(heroCardBounds.IsEmpty);
-            Assert.Equal(window.MinimumSize.Width, heroCardBounds.Width + 28);
-            Assert.Equal(titleBar.Bottom + 14, heroCardBounds.Top);
+            Assert.Equal(automationPage.Width, heroCardBounds.Width);
+            Assert.Equal(titleBar.Bottom + 14, automationPage.Top);
+            Assert.Equal(0, heroCardBounds.Top);
             Assert.Same(heroHost, status.Parent);
             Assert.Same(heroHost, actions.Parent);
-            Assert.Same(window, heroHost.Parent);
+            Assert.Same(automationPage, heroHost.Parent);
             Assert.True(heroCardBounds.Contains(heroHost.Bounds), $"Hero card {heroCardBounds} did not contain hero host {heroHost.Bounds}.");
             Assert.True(heroHost.ClientRectangle.Contains(status.Bounds), $"Hero host {heroHost.ClientRectangle} did not contain status {status.Bounds}.");
             Assert.True(heroHost.ClientRectangle.Contains(actions.Bounds), $"Hero host {heroHost.ClientRectangle} did not contain actions {actions.Bounds}.");
