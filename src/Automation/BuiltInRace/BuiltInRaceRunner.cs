@@ -20,6 +20,7 @@ public sealed class BuiltInRaceRunner : IGameTask
         Report("识别内置跑马界面...");
 
         int idleTicks = 0;
+        bool keepPollingForCompletion = false;
         while (true)
         {
             ctx.CheckCancellation();
@@ -38,13 +39,13 @@ public sealed class BuiltInRaceRunner : IGameTask
             if (action is null)
             {
                 idleTicks++;
-                if (idleTicks >= MaxIdleTicks)
+                if (!keepPollingForCompletion && idleTicks >= MaxIdleTicks)
                 {
                     Log.Log("No built-in race screen matched for too long, stopping.");
                     break;
                 }
 
-                Report("等待可识别界面...");
+                Report(keepPollingForCompletion ? "等待旅程结算..." : "等待可识别界面...");
                 await ctx.Wait(800);
                 continue;
             }
@@ -54,10 +55,21 @@ public sealed class BuiltInRaceRunner : IGameTask
             Report(action.Value.Description);
             await ctx.ClickAtPercent(action.Value.XPct, action.Value.YPct);
 
+            if (action.Value.Step is BuiltInRaceStep.StartAutoJourney or BuiltInRaceStep.ConfirmEntry)
+            {
+                keepPollingForCompletion = true;
+            }
+
             if (action.Value.Step == BuiltInRaceStep.ConfirmEntry)
             {
                 await ctx.Wait(800);
-                Report("已启动内置自动旅程");
+                Report("已启动内置自动旅程，等待结算...");
+                continue;
+            }
+
+            if (BuiltInRacePlanner.ShouldStopAfterAction(action.Value.Step))
+            {
+                await ctx.Wait(800);
                 break;
             }
 

@@ -145,6 +145,49 @@ public class WarmUiMainWindowBehaviorTests
     }
 
     [Fact]
+    public void RaceMainWindow_keeps_page_tabs_clear_of_sidebar_divider()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                new StubRaceController(),
+                new StubRaceController());
+
+            var pageNav = WinFormsTestHost.ReadPrivateField<Control>(window, "_pageNav");
+            var automationButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnAutomationPage");
+            var builtInButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnBuiltInPage");
+            int dividerX = pageNav.Width - 1;
+
+            Assert.True(
+                automationButton.Right < dividerX,
+                $"Expected automation tab to leave room before the divider, button.Right={automationButton.Right}, dividerX={dividerX}.");
+            Assert.True(
+                builtInButton.Right < dividerX,
+                $"Expected built-in tab to leave room before the divider, button.Right={builtInButton.Right}, dividerX={dividerX}.");
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_page_tabs_do_not_paint_right_side_edges()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                new StubRaceController(),
+                new StubRaceController());
+
+            var automationButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnAutomationPage");
+            var builtInButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnBuiltInPage");
+            SetPrivateField(builtInButton, "_hover", true);
+
+            AssertRightBandStaysBackground(automationButton);
+            AssertRightBandStaysBackground(builtInButton);
+        });
+    }
+
+    [Fact]
     public void RaceMainWindow_switches_to_built_in_page_without_starting_or_stopping_runner()
     {
         WinFormsTestHost.Run(() =>
@@ -207,6 +250,81 @@ public class WarmUiMainWindowBehaviorTests
             Assert.Equal(0, automationController.StartCallCount);
             Assert.Equal(0, automationController.StopCallCount);
             Assert.Equal(1, builtInController.StartCallCount);
+            Assert.Equal(1, builtInController.StopCallCount);
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_alt_q_hotkey_toggles_built_in_controller_on_built_in_page()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            var automationController = new StubRaceController();
+            var builtInController = new StubRaceController();
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                automationController,
+                builtInController);
+
+            var builtInButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnBuiltInPage");
+            ClickButton((Button)builtInButton);
+
+            DispatchAltQHotkey(window);
+            builtInController.SetState(RaceState.Running);
+            DispatchAltQHotkey(window);
+
+            Assert.Equal(0, automationController.StartCallCount);
+            Assert.Equal(0, automationController.StopCallCount);
+            Assert.Equal(1, builtInController.StartCallCount);
+            Assert.Equal(1, builtInController.StopCallCount);
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_alt_q_hotkey_stops_running_automation_before_starting_current_page()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            var automationController = new StubRaceController();
+            var builtInController = new StubRaceController();
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                automationController,
+                builtInController);
+
+            var builtInButton = WinFormsTestHost.ReadPrivateField<Control>(window, "_btnBuiltInPage");
+            ClickButton((Button)builtInButton);
+            automationController.SetState(RaceState.Running);
+
+            DispatchAltQHotkey(window);
+
+            Assert.Equal(0, automationController.StartCallCount);
+            Assert.Equal(1, automationController.StopCallCount);
+            Assert.Equal(0, builtInController.StartCallCount);
+            Assert.Equal(0, builtInController.StopCallCount);
+        });
+    }
+
+    [Fact]
+    public void RaceMainWindow_alt_q_hotkey_stops_both_running_controllers()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            var automationController = new StubRaceController();
+            var builtInController = new StubRaceController();
+            using var window = (Form)WinFormsTestHost.CreateInternal(
+                "SleepRunner.Forms.RaceMainWindow",
+                automationController,
+                builtInController);
+
+            automationController.SetState(RaceState.Running);
+            builtInController.SetState(RaceState.Running);
+
+            DispatchAltQHotkey(window);
+
+            Assert.Equal(0, automationController.StartCallCount);
+            Assert.Equal(1, automationController.StopCallCount);
+            Assert.Equal(0, builtInController.StartCallCount);
             Assert.Equal(1, builtInController.StopCallCount);
         });
     }
@@ -434,6 +552,38 @@ public class WarmUiMainWindowBehaviorTests
 
     private static void ClickButton(Button button) =>
         WinFormsTestHost.Invoke(button, "OnClick", EventArgs.Empty);
+
+    private static void AssertRightBandStaysBackground(Control control)
+    {
+        Color background = Color.FromArgb(247, 244, 239);
+        using var bitmap = new Bitmap(control.Width, control.Height);
+        using (Graphics graphics = Graphics.FromImage(bitmap))
+        {
+            graphics.Clear(background);
+            using var args = new PaintEventArgs(graphics, new Rectangle(Point.Empty, control.Size));
+            WinFormsTestHost.Invoke(control, "OnPaint", args);
+        }
+
+        int startX = Math.Max(0, control.Width - 8);
+        for (int x = startX; x < control.Width; x++)
+        {
+            for (int y = 0; y < control.Height; y++)
+            {
+                Color pixel = bitmap.GetPixel(x, y);
+                Assert.Equal(
+                    background.ToArgb(),
+                    pixel.ToArgb());
+            }
+        }
+    }
+
+    private static void SetPrivateField(object instance, string fieldName, object value)
+    {
+        FieldInfo field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException($"Field '{fieldName}' not found.");
+
+        field.SetValue(instance, value);
+    }
 
     private static void DispatchAltQHotkey(Form window)
     {

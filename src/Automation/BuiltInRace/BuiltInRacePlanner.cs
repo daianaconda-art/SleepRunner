@@ -4,11 +4,37 @@ public static class BuiltInRacePlanner
 {
     public static BuiltInRaceAction? Decide(BuiltInRaceScreenSnapshot snapshot)
     {
-        string title = Normalize(snapshot.JourneyTitleText);
         string bottomRight = Normalize(snapshot.BottomRightText);
         string bottomJourney = Normalize(snapshot.BottomJourneyText);
         string dialogTitle = Normalize(snapshot.DialogTitleText);
         string dialogBody = Normalize(snapshot.DialogBodyText);
+
+        if (IsInheritJourney(dialogTitle, dialogBody))
+        {
+            return new BuiltInRaceAction(
+                BuiltInRaceStep.InheritJourneyContinue,
+                0.500,
+                0.885,
+                "继承旅程 -> 点击继续");
+        }
+
+        if (IsJourneyComplete(dialogTitle, dialogBody))
+        {
+            return new BuiltInRaceAction(
+                BuiltInRaceStep.JourneyCompleteContinue,
+                0.500,
+                0.920,
+                "旅程完成 -> 点击继续");
+        }
+
+        if (IsJourneyEndPotential(bottomRight, bottomJourney))
+        {
+            return new BuiltInRaceAction(
+                BuiltInRaceStep.OpenPotential,
+                0.730,
+                0.958,
+                "旅程结束 -> 潜质");
+        }
 
         if (IsEntryConfirmation(dialogTitle, dialogBody, bottomRight))
         {
@@ -24,12 +50,11 @@ public static class BuiltInRacePlanner
             return new BuiltInRaceAction(
                 BuiltInRaceStep.StartAutoJourney,
                 0.503,
-                0.876,
+                0.786,
                 "自动旅程弹窗 -> 开始旅程");
         }
 
-        if (HasJourneyStartTitle(title) &&
-            bottomJourney.Contains("自动旅程", StringComparison.Ordinal))
+        if (bottomJourney.Contains("自动旅程", StringComparison.Ordinal))
         {
             return new BuiltInRaceAction(
                 BuiltInRaceStep.OpenAutoJourney,
@@ -38,27 +63,39 @@ public static class BuiltInRacePlanner
                 "编队页 -> 自动旅程");
         }
 
-        if (HasJourneyStartTitle(title) &&
-            bottomRight.Contains("确认", StringComparison.Ordinal))
-        {
-            return new BuiltInRaceAction(
-                BuiltInRaceStep.ConfirmStartingCharacter,
-                0.895,
-                0.938,
-                "旅程起点 -> 确认");
-        }
-
-        if (HasJourneyStartTitle(title) &&
-            bottomRight.Contains("选择", StringComparison.Ordinal))
-        {
-            return new BuiltInRaceAction(
-                BuiltInRaceStep.SelectStartingCharacter,
-                0.885,
-                0.960,
-                "旅程起点 -> 选择");
-        }
-
         return null;
+    }
+
+    public static bool ShouldStopAfterAction(BuiltInRaceStep step) =>
+        step == BuiltInRaceStep.OpenPotential;
+
+    private static bool IsJourneyComplete(string dialogTitle, string dialogBody)
+    {
+        string text = dialogTitle + dialogBody;
+        return text.Contains("JOURNEYCOMPLETE", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("完成了旅程", StringComparison.Ordinal) ||
+               text.Contains("点击以继续", StringComparison.Ordinal) ||
+               (text.Contains("点击", StringComparison.Ordinal) &&
+                text.Contains("继续", StringComparison.Ordinal)) ||
+               (text.Contains("旅程", StringComparison.Ordinal) &&
+                text.Contains("完成", StringComparison.Ordinal) &&
+                text.Contains("继续", StringComparison.Ordinal));
+    }
+
+    private static bool IsInheritJourney(string dialogTitle, string dialogBody)
+    {
+        string text = dialogTitle + dialogBody;
+        return text.Contains("继承旅程", StringComparison.Ordinal) ||
+               text.Contains("旅程画下句号", StringComparison.Ordinal) ||
+               (text.Contains("剩余", StringComparison.Ordinal) &&
+                text.Contains("退还", StringComparison.Ordinal) &&
+                text.Contains("奖励", StringComparison.Ordinal));
+    }
+
+    private static bool IsJourneyEndPotential(string bottomRight, string bottomJourney)
+    {
+        return bottomJourney.Contains("潜质", StringComparison.Ordinal) ||
+               bottomRight.Contains("旅程结束", StringComparison.Ordinal);
     }
 
     private static bool IsEntryConfirmation(string dialogTitle, string dialogBody, string bottomRight)
@@ -79,11 +116,6 @@ public static class BuiltInRacePlanner
         return bottomJourney.Contains("开始旅程", StringComparison.Ordinal) ||
                (dialogBody.Contains("训练频率", StringComparison.Ordinal) &&
                 dialogBody.Contains("自动旅程", StringComparison.Ordinal));
-    }
-
-    private static bool HasJourneyStartTitle(string text)
-    {
-        return text.Contains("旅程起点", StringComparison.Ordinal);
     }
 
     public static string Normalize(string raw)

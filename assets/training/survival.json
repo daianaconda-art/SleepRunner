@@ -1,5 +1,10 @@
 {
   "_comment": "生存向训练策略：纯规则版。规则自上而下匹配，首条命中即执行。",
+  "legacy_strategy": {
+    "build_direction": "survival",
+    "fail_rate_threshold": 30,
+    "rush_threshold": 450
+  },
   "rules": [
     {
       "id": "rest_high_fail",
@@ -58,8 +63,8 @@
       "enabled": true
     },
     {
-      "id": "fallback_survival_stamina",
-      "action": "train_stamina",
+      "id": "fallback_survival_builtin",
+      "action": "builtin_default",
       "enabled": true
     }
   ]

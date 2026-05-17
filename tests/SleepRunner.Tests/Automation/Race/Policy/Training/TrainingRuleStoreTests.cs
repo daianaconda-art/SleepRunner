@@ -202,4 +202,49 @@ public class TrainingRuleStoreTests
             TrainingRuleStore.ForceReload();
         }
     }
+
+    [Fact]
+    public void Survival_asset_uses_survival_metadata_and_builtin_fallback()
+    {
+        string profilePath = TrainingRuleProfileManager.ResolvePath("survival");
+
+        var profile = TrainingRuleStore.LoadFromPath(profilePath);
+
+        Assert.Equal(SleepRunner.Automation.Race.BuildDirection.Survival, profile.LegacyStrategy.BuildDirection);
+        var fallback = Assert.Single(profile.Rules, rule => rule.IsFallback);
+        Assert.Equal("fallback_survival_builtin", fallback.Id);
+        Assert.Equal(TrainingDecisionAction.BuiltinDefault, fallback.Action);
+
+        var highFailDecision = TrainingRuleEngine.Evaluate(new TrainingDecisionContext
+        {
+            ProfileName = "survival",
+            IconCounts = [2, 1, 2, 1, 0],
+            FailRates = [0, 0, 0, 100, 0],
+            KnownIconMask = 0b11111,
+            KnownFailRateMask = 0b11111,
+            StrengthStat = 114,
+            StaminaStat = 193,
+            BuildDirection = profile.LegacyStrategy.BuildDirection,
+            LegacyFailRateThreshold = profile.LegacyStrategy.FailRateThreshold,
+            LegacyRushThreshold = profile.LegacyStrategy.RushThreshold,
+        }, profile);
+        Assert.Equal(TrainingDecisionAction.Rest, highFailDecision.Action);
+
+        var fallbackDecision = TrainingRuleEngine.Evaluate(new TrainingDecisionContext
+        {
+            ProfileName = "survival",
+            IconCounts = [2, 1, 1, 2, 2],
+            FailRates = [0, 0, 0, 0, 0],
+            KnownIconMask = 0b11111,
+            KnownFailRateMask = 0b11111,
+            StrengthStat = 114,
+            StaminaStat = 286,
+            BuildDirection = profile.LegacyStrategy.BuildDirection,
+            LegacyFailRateThreshold = profile.LegacyStrategy.FailRateThreshold,
+            LegacyRushThreshold = profile.LegacyStrategy.RushThreshold,
+        }, profile);
+        Assert.Equal("fallback_survival_builtin", fallbackDecision.MatchedRuleId);
+        Assert.True(fallbackDecision.UsedBuiltinDefault);
+        Assert.NotEqual(TrainingDecisionAction.TrainStamina, fallbackDecision.Action);
+    }
 }

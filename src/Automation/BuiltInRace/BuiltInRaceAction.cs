@@ -2,11 +2,12 @@ namespace SleepRunner.Automation.BuiltInRace;
 
 public enum BuiltInRaceStep
 {
-    SelectStartingCharacter,
-    ConfirmStartingCharacter,
     OpenAutoJourney,
     StartAutoJourney,
     ConfirmEntry,
+    JourneyCompleteContinue,
+    InheritJourneyContinue,
+    OpenPotential,
 }
 
 public readonly record struct BuiltInRaceAction(

@@ -38,6 +38,7 @@ public sealed class RaceMainWindow : Form
     private const int PageNavGap = 12;
     private const int PageNavButtonHeight = 42;
     private const int PageNavButtonGap = 8;
+    private const int PageNavButtonRightInset = 6;
     private const int GapAfterHero = 18;
     private const int GapAfterSection = 8;
     private const int GapAfterConfig = 14;
@@ -624,8 +625,9 @@ public sealed class RaceMainWindow : Form
 
     private void LayoutPageNavChildren()
     {
-        _btnAutomationPage.SetBounds(0, 0, PageNavWidth, PageNavButtonHeight);
-        _btnBuiltInPage.SetBounds(0, PageNavButtonHeight + PageNavButtonGap, PageNavWidth, PageNavButtonHeight);
+        int buttonWidth = Math.Max(0, PageNavWidth - PageNavButtonRightInset);
+        _btnAutomationPage.SetBounds(0, 0, buttonWidth, PageNavButtonHeight);
+        _btnBuiltInPage.SetBounds(0, PageNavButtonHeight + PageNavButtonGap, buttonWidth, PageNavButtonHeight);
     }
 
     private void BuildTitleBar()
@@ -891,22 +893,8 @@ public sealed class RaceMainWindow : Form
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.Clear(RaceTheme.Bg);
             g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-
-            var rect = new Rectangle(0, 0, Width - 1, Height - 1);
-            Color fill = Active
-                ? Color.FromArgb(251, 241, 233)
-                : _pressed
-                    ? Color.FromArgb(244, 238, 230)
-                    : _hover
-                        ? Color.FromArgb(249, 246, 241)
-                        : Color.Transparent;
-
-            if (fill.A > 0)
-            {
-                RaceTheme.FillRoundedRect(g, rect, fill, 8);
-            }
 
             if (Active)
             {
@@ -914,7 +902,7 @@ public sealed class RaceMainWindow : Form
                 g.FillRectangle(accent, 0, 8, 3, Height - 16);
             }
 
-            Color fg = Active ? RaceTheme.TextPrimary : RaceTheme.TextSecondary;
+            Color fg = Active || _hover || _pressed ? RaceTheme.TextPrimary : RaceTheme.TextSecondary;
             var textRect = new Rectangle(12, 0, Math.Max(0, Width - 18), Height);
             TextRenderer.DrawText(
                 g,
@@ -1111,15 +1099,28 @@ public sealed class RaceMainWindow : Form
 
     private void ToggleAutomationFromHotkey()
     {
-        switch (_controller.State)
+        bool automationActive = IsActiveState(_controller.State);
+        bool builtInActive = IsActiveState(_builtInController.State);
+        if (automationActive || builtInActive)
         {
-            case RaceState.Idle:
-            case RaceState.Stopped:
-                OnStartClicked();
-                break;
+            StopControllerFromHotkey(_controller, OnStopClicked);
+            StopControllerFromHotkey(_builtInController, OnBuiltInStopClicked);
+            return;
+        }
+
+        if (_activePage == MainPage.BuiltIn)
+            OnBuiltInStartClicked();
+        else
+            OnStartClicked();
+    }
+
+    private static void StopControllerFromHotkey(IRaceController controller, Action stop)
+    {
+        switch (controller.State)
+        {
             case RaceState.Running:
             case RaceState.Paused:
-                OnStopClicked();
+                stop();
                 break;
         }
     }
